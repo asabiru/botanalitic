@@ -13,6 +13,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
   ADMIN_CHAT_ID: z.string().optional(),
+  ADMIN_API_KEY: z.string().optional(),
   LOG_LEVEL: z.string().default("info")
 });
 
@@ -28,5 +29,6 @@ export const config: AppConfig = envSchema.parse({
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
   ADMIN_CHAT_ID: process.env.ADMIN_CHAT_ID,
+  ADMIN_API_KEY: process.env.ADMIN_API_KEY,
   LOG_LEVEL: process.env.LOG_LEVEL
 });

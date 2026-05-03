@@ -1,6 +1,9 @@
 import express from "express";
+import { resolve } from "node:path";
 import { bot, orderStore, aiAnalysisService } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
+import { config } from "./config.js";
+import { auditLog } from "./admin/audit-log.js";
 
 type YooKassaWebhookEvent = {
   event?: string;
@@ -86,6 +89,113 @@ export function createServer() {
       ok: true,
       orders: orderStore.listByTelegramUserId(telegramUserId)
     });
+  });
+
+  // --- Admin HTTP API ---
+
+  const adminDir = resolve(process.cwd(), "..", "..", "admin");
+
+  app.use("/admin/dashboard", express.static(adminDir));
+
+  function adminApiGuard(req: express.Request, res: express.Response, next: express.NextFunction): void {
+    const key = req.headers["x-admin-key"] as string | undefined;
+    if (!config.ADMIN_API_KEY || key !== config.ADMIN_API_KEY) {
+      res.status(401).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+    next();
+  }
+
+  app.get("/admin/stats", adminApiGuard, (_req, res) => {
+    auditLog("http_stats", "api");
+    const all = orderStore.listAll();
+    const paid = all.filter((o) => o.status === "paid" || o.status === "delivered");
+    const totalRevenue = paid.reduce((sum, o) => sum + o.amountRub, 0);
+    const avgCheck = paid.length > 0 ? Math.round(totalRevenue / paid.length) : 0;
+    const uniqueUsers = orderStore.uniqueUserIds().size;
+
+    res.json({
+      ok: true,
+      stats: {
+        totalOrders: all.length,
+        paidOrders: paid.length,
+        totalRevenue,
+        avgCheck,
+        uniqueUsers
+      }
+    });
+  });
+
+  app.get("/admin/orders", adminApiGuard, (req, res) => {
+    auditLog("http_orders", "api");
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const all = orderStore.listAll();
+    const start = (page - 1) * limit;
+    const orders = all.slice(start, start + limit);
+
+    res.json({
+      ok: true,
+      page,
+      limit,
+      total: all.length,
+      orders
+    });
+  });
+
+  app.get("/admin/orders/:id", adminApiGuard, (req, res) => {
+    const orderId = req.params.id as string;
+    auditLog("http_order_detail", "api", `orderId=${orderId}`);
+    const order = orderStore.getById(orderId);
+
+    if (!order) {
+      res.status(404).json({ ok: false, error: "order_not_found" });
+      return;
+    }
+
+    res.json({ ok: true, order });
+  });
+
+  app.post("/admin/orders/:id/resend", adminApiGuard, async (req, res) => {
+    const orderId = req.params.id as string;
+    auditLog("http_resend", "api", `orderId=${orderId}`);
+
+    const order = orderStore.getById(orderId);
+
+    if (!order) {
+      res.status(404).json({ ok: false, error: "order_not_found" });
+      return;
+    }
+
+    const instrument = findInstrumentById(order.instrumentId);
+
+    if (!instrument) {
+      res.status(404).json({ ok: false, error: "instrument_not_found" });
+      return;
+    }
+
+    try {
+      const analysis = await aiAnalysisService.generateAnalysis({
+        instrument,
+        ticker: order.ticker,
+        investorProfile: order.investorProfile
+      });
+
+      await bot.telegram.sendMessage(
+        order.telegramUserId,
+        "📨 Повторная отправка аналитики по вашему заказу:"
+      );
+      await bot.telegram.sendMessage(order.telegramUserId, analysis, {
+        parse_mode: "HTML"
+      });
+
+      orderStore.update(order.id, { status: "delivered" });
+
+      res.json({ ok: true, message: "analysis_resent" });
+    } catch (error) {
+      console.error("Resend failed", error);
+      res.status(500).json({ ok: false, error: "resend_failed" });
+    }
   });
 
   return app;

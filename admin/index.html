@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Market View — Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    };
+  </script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <header class="mb-8 flex items-center justify-between">
+      <h1 class="text-2xl font-bold">AI Market View — Admin</h1>
+      <div class="flex items-center gap-2">
+        <input
+          id="apiKeyInput"
+          type="password"
+          placeholder="Admin API Key"
+          class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+        />
+        <button
+          onclick="loadAll()"
+          class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded"
+        >
+          Войти
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Cards -->
+    <section id="statsSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400">Всего заказов</div>
+        <div id="statTotal" class="text-2xl font-bold mt-1">—</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400">Оплаченных</div>
+        <div id="statPaid" class="text-2xl font-bold mt-1">—</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400">Выручка</div>
+        <div id="statRevenue" class="text-2xl font-bold mt-1">—</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400">Средний чек</div>
+        <div id="statAvg" class="text-2xl font-bold mt-1">—</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400">Пользователи</div>
+        <div id="statUsers" class="text-2xl font-bold mt-1">—</div>
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="mb-4 flex flex-wrap items-center gap-3">
+      <select
+        id="filterStatus"
+        class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none"
+      >
+        <option value="">Все статусы</option>
+        <option value="created">created</option>
+        <option value="waiting_payment">waiting_payment</option>
+        <option value="paid">paid</option>
+        <option value="delivered">delivered</option>
+        <option value="cancelled">cancelled</option>
+      </select>
+      <button
+        onclick="loadOrders(1)"
+        class="bg-gray-700 hover:bg-gray-600 text-sm px-4 py-1.5 rounded"
+      >
+        Фильтр
+      </button>
+    </section>
+
+    <!-- Orders Table -->
+    <section class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700 text-left text-gray-400">
+            <th class="py-2 px-3">ID</th>
+            <th class="py-2 px-3">Статус</th>
+            <th class="py-2 px-3">Инструмент</th>
+            <th class="py-2 px-3">Сумма</th>
+            <th class="py-2 px-3">User</th>
+            <th class="py-2 px-3">Дата</th>
+            <th class="py-2 px-3">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+    </section>
+
+    <!-- Pagination -->
+    <section class="mt-4 flex items-center gap-3">
+      <button
+        id="prevBtn"
+        onclick="loadOrders(currentPage - 1)"
+        class="bg-gray-700 hover:bg-gray-600 text-sm px-3 py-1.5 rounded disabled:opacity-40"
+        disabled
+      >
+        Назад
+      </button>
+      <span id="pageInfo" class="text-sm text-gray-400">—</span>
+      <button
+        id="nextBtn"
+        onclick="loadOrders(currentPage + 1)"
+        class="bg-gray-700 hover:bg-gray-600 text-sm px-3 py-1.5 rounded disabled:opacity-40"
+        disabled
+      >
+        Вперёд
+      </button>
+    </section>
+
+    <!-- Status message -->
+    <div id="statusMsg" class="mt-4 text-sm text-gray-500"></div>
+  </div>
+
+  <script>
+    const LIMIT = 20;
+    let currentPage = 1;
+
+    function getKey() {
+      return document.getElementById('apiKeyInput').value.trim();
+    }
+
+    function getBaseUrl() {
+      return window.location.origin;
+    }
+
+    async function apiFetch(path) {
+      const res = await fetch(getBaseUrl() + path, {
+        headers: { 'X-Admin-Key': getKey() },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function loadStats() {
+      try {
+        const data = await apiFetch('/admin/stats');
+        const s = data.stats;
+        document.getElementById('statTotal').textContent = s.totalOrders;
+        document.getElementById('statPaid').textContent = s.paidOrders;
+        document.getElementById('statRevenue').textContent = s.totalRevenue.toLocaleString('ru-RU') + ' \u20BD';
+        document.getElementById('statAvg').textContent = s.avgCheck.toLocaleString('ru-RU') + ' \u20BD';
+        document.getElementById('statUsers').textContent = s.uniqueUsers;
+      } catch (e) {
+        document.getElementById('statusMsg').textContent = 'Ошибка загрузки статистики: ' + e.message;
+      }
+    }
+
+    async function loadOrders(page) {
+      if (page < 1) return;
+      currentPage = page;
+
+      try {
+        const status = document.getElementById('filterStatus').value;
+        let url = `/admin/orders?page=${page}&limit=${LIMIT}`;
+        const data = await apiFetch(url);
+        let orders = data.orders;
+
+        if (status) {
+          orders = orders.filter((o) => o.status === status);
+        }
+
+        const tbody = document.getElementById('ordersBody');
+        tbody.innerHTML = '';
+
+        if (orders.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-gray-500">Нет заказов</td></tr>';
+        } else {
+          for (const o of orders) {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-gray-800 hover:bg-gray-800/50';
+            tr.innerHTML = `
+              <td class="py-2 px-3 font-mono text-xs">${o.id.slice(0, 8)}</td>
+              <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-xs ${statusColor(o.status)}">${o.status}</span></td>
+              <td class="py-2 px-3">${o.instrumentTitle}</td>
+              <td class="py-2 px-3">${o.amountRub} \u20BD</td>
+              <td class="py-2 px-3">${o.telegramUserId}</td>
+              <td class="py-2 px-3">${o.createdAt.slice(0, 10)}</td>
+              <td class="py-2 px-3">
+                <button onclick="resendOrder('${o.id}')" class="bg-yellow-600 hover:bg-yellow-700 text-xs px-2 py-1 rounded">
+                  Перевыдать
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+
+        const total = data.total;
+        const totalPages = Math.ceil(total / LIMIT);
+        document.getElementById('pageInfo').textContent = `Стр. ${page} / ${totalPages || 1} (всего ${total})`;
+        document.getElementById('prevBtn').disabled = page <= 1;
+        document.getElementById('nextBtn').disabled = page >= totalPages;
+      } catch (e) {
+        document.getElementById('statusMsg').textContent = 'Ошибка загрузки заказов: ' + e.message;
+      }
+    }
+
+    function statusColor(status) {
+      switch (status) {
+        case 'delivered': return 'bg-green-700 text-green-100';
+        case 'paid': return 'bg-blue-700 text-blue-100';
+        case 'waiting_payment': return 'bg-yellow-700 text-yellow-100';
+        case 'cancelled': return 'bg-red-700 text-red-100';
+        default: return 'bg-gray-700 text-gray-300';
+      }
+    }
+
+    async function resendOrder(orderId) {
+      if (!confirm('Перевыдать аналитику по этому заказу?')) return;
+
+      try {
+        await apiFetch(`/admin/orders/${orderId}/resend`);
+        document.getElementById('statusMsg').textContent = 'Аналитика отправлена повторно.';
+      } catch (e) {
+        document.getElementById('statusMsg').textContent = 'Ошибка перевыдачи: ' + e.message;
+      }
+    }
+
+    function loadAll() {
+      document.getElementById('statusMsg').textContent = '';
+      loadStats();
+      loadOrders(1);
+    }
+  </script>
+</body>
+</html>
