@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.DS_Store
+Thumbs.db
+
+# OS
+*.swp
+*.swo
+
+# Prisma
+prisma/.db.sqlite
+prisma/dev.db*
+
+# Docker / infra local
+infra/docker/data/
+*.local.yml
+
+# Temp
+tmp/
+.cache/
+
+# Tests
+playwright-report/
+test-results/

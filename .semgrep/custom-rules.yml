@@ -1,0 +1,88 @@
+rules:
+  - id: forbidden-marketing-phrases
+    message: |
+      Запрещенная маркетинговая формулировка (раздел 3 ТЗ).
+      Используйте корректные формулировки из docs/risk-disclosure-requirements.md.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "apps/web/**/*.tsx"
+        - "apps/web/**/*.ts"
+        - "apps/web/**/*.json"
+        - "apps/web/**/*.md"
+        - "docs/**/*.md"
+    pattern-either:
+      - pattern-regex: "(?i)guaranteed profit"
+      - pattern-regex: "(?i)risk[- ]free"
+      - pattern-regex: "(?i)stable income"
+      - pattern-regex: "(?i)safe trading"
+      - pattern-regex: "(?i)100% signal"
+      - pattern-regex: "(?i)passive income without losses"
+      - pattern-regex: "гарантированная прибыль"
+      - pattern-regex: "без риска"
+      - pattern-regex: "стабильный доход"
+      - pattern-regex: "безопасная торговля"
+      - pattern-regex: "100% сигнал"
+      - pattern-regex: "пассивный доход без потерь"
+
+  - id: no-direct-balance-update
+    message: |
+      Прямой UPDATE на client_balances запрещен (docs/ledger-model.md раздел 11).
+      Используйте LedgerService.postEntries(...) транзакционно.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "src/**"
+        - "services/**"
+        - "packages/**"
+      exclude:
+        - "packages/ledger/**"
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+    pattern-regex: 'UPDATE\s+client_balances'
+
+  - id: no-math-random-in-money-paths
+    message: |
+      Math.random() недопустим в money/security paths.
+      Используйте crypto.randomBytes / crypto.randomUUID.
+    severity: ERROR
+    languages: [javascript, typescript]
+    paths:
+      include:
+        - "src/modules/ledger/**"
+        - "src/modules/withdrawals/**"
+        - "src/modules/deposits/**"
+        - "src/modules/risk/**"
+        - "services/signing/**"
+        - "packages/ledger/**"
+        - "packages/risk/**"
+    pattern: "Math.random()"
+
+  - id: no-secret-logging
+    message: |
+      Возможное логирование секретов. Запрещено логировать password/secret/key/seed/signature/private/api_key.
+    severity: WARNING
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: console.log($X, ..., $SECRET, ...)
+      - pattern: logger.$METHOD(..., $SECRET, ...)
+    pattern-regex: '(password|secret|seed|mnemonic|signature|private[_-]?key|api[_-]?key|api[_-]?secret)'
+
+  - id: no-hardcoded-addresses
+    message: |
+      Захардкоженные blockchain-адреса в коде запрещены. Используйте config / wallets registry.
+    severity: WARNING
+    languages: [javascript, typescript]
+    paths:
+      include:
+        - "src/**"
+        - "services/**"
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+        - "**/seed/**"
+    pattern-either:
+      - pattern-regex: "T[0-9A-HJ-NP-Za-km-z]{33}"
+      - pattern-regex: "0x[a-fA-F0-9]{40}"
