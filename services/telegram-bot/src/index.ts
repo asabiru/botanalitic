@@ -255,13 +255,10 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
   if (session.appliedPromoCode) {
     const result = promoStore.validate(session.appliedPromoCode);
     if (result.valid) {
-      const useResult = promoStore.use(session.appliedPromoCode);
-      if (!("error" in useResult)) {
-        originalAmount = instrument.priceRub;
-        discountPercent = result.promo.discountPercent;
-        finalAmount = calculateDiscount(instrument.priceRub, discountPercent);
-        appliedCode = session.appliedPromoCode;
-      }
+      originalAmount = instrument.priceRub;
+      discountPercent = result.promo.discountPercent;
+      finalAmount = calculateDiscount(instrument.priceRub, discountPercent);
+      appliedCode = session.appliedPromoCode;
     }
   }
 
@@ -285,6 +282,10 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
       orderId: order.id,
       amountRub: finalAmount
     });
+
+    if (appliedCode) {
+      promoStore.use(appliedCode);
+    }
 
     orderStore.update(order.id, {
       paymentId: payment.paymentId,
@@ -443,7 +444,8 @@ bot.on("text", async (ctx: any) => {
             mainMenu()
           );
         } else {
-          await ctx.reply("✅ Реферальный код принят! Скидка будет применена при оплате.", mainMenu());
+          sessionStore.patch(ctx.from.id, { appliedPromoCode: undefined });
+          await ctx.reply("✅ Реферальный код принят, но скидка по реферальной программе сейчас недоступна.", mainMenu());
         }
 
         if (refResult.referrerUserId) {
