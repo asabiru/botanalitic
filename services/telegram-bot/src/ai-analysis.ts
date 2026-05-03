@@ -82,7 +82,7 @@ export class AiAnalysisService {
     if (ctx?.news && ctx.news.length > 0) {
       lines.push("", "<b>📰 Последние новости</b>");
       for (const n of ctx.news.slice(0, 3)) {
-        lines.push(`• <a href="${n.link}">${this.escapeHtml(n.title)}</a> (${n.source})`);
+        lines.push(`• <a href="${this.escapeHtml(n.link)}">${this.escapeHtml(n.title)}</a> (${this.escapeHtml(n.source)})`);
       }
     }
 
