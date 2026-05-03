@@ -2,13 +2,15 @@ import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { createServer } from "./server.js";
 import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { LEGAL_INFO_MESSAGE } from "./legal/legal-texts.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📚 Каталог аналитики", "catalog")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
-    [Markup.button.callback("ℹ️ О сервисе", "about")]
+    [Markup.button.callback("ℹ️ О сервисе", "about")],
+    [Markup.button.callback("📄 Юридическая информация", "legal")]
   ]);
 }
 
@@ -108,6 +110,21 @@ bot.action("about", async (ctx: any) => {
       "• идея по горизонту"
     ].join("\n")
   );
+});
+
+bot.command("legal", async (ctx: any) => {
+  await ctx.reply(LEGAL_INFO_MESSAGE, {
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
+});
+
+bot.action("legal", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(LEGAL_INFO_MESSAGE, {
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
 });
 
 bot.action(/^instrument:(.+)$/, async (ctx: any) => {
