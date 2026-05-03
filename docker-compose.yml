@@ -29,6 +29,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://botanalitic:botanalitic@postgres:5432/botanalitic
+      PORT: 3000
     depends_on:
       postgres:
         condition: service_healthy
