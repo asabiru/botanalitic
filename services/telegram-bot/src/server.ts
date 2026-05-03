@@ -123,7 +123,7 @@ export function createServer() {
           return;
         }
 
-        orderStore.update(order.id, { status: "paid" });
+        orderStore.update(order.id, { status: "paid", paymentId });
 
         const instrument = findInstrumentById(order.instrumentId);
 
