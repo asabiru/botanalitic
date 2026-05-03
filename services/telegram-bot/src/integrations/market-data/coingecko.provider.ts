@@ -22,13 +22,46 @@ interface CoinGeckoMarketChartResponse {
   total_volumes: [number, number][];
 }
 
+const TICKER_TO_ID: Record<string, string> = {
+  btc: "bitcoin",
+  eth: "ethereum",
+  sol: "solana",
+  bnb: "binancecoin",
+  xrp: "ripple",
+  ada: "cardano",
+  doge: "dogecoin",
+  dot: "polkadot",
+  avax: "avalanche-2",
+  matic: "matic-network",
+  link: "chainlink",
+  uni: "uniswap",
+  atom: "cosmos",
+  ltc: "litecoin",
+  etc: "ethereum-classic",
+  xlm: "stellar",
+  near: "near",
+  apt: "aptos",
+  arb: "arbitrum",
+  op: "optimism",
+  sui: "sui",
+  ton: "the-open-network",
+  trx: "tron",
+  shib: "shiba-inu",
+  fil: "filecoin",
+};
+
 export class CoinGeckoProvider implements MarketDataProvider {
   readonly name = "coingecko";
 
   constructor(private cache: MarketCache) {}
 
+  private resolveCoinId(symbol: string): string {
+    const lower = symbol.toLowerCase();
+    return TICKER_TO_ID[lower] ?? lower;
+  }
+
   async getQuote(symbol: string): Promise<MarketQuote | null> {
-    const coinId = symbol.toLowerCase();
+    const coinId = this.resolveCoinId(symbol);
     const cacheKey = `cg:quote:${coinId}`;
     const cached = this.cache.get<MarketQuote>(cacheKey);
     if (cached) return cached;
@@ -77,7 +110,7 @@ export class CoinGeckoProvider implements MarketDataProvider {
     symbol: string,
     period: string,
   ): Promise<HistoricalBar[]> {
-    const coinId = symbol.toLowerCase();
+    const coinId = this.resolveCoinId(symbol);
     const cacheKey = `cg:hist:${coinId}:${period}`;
     const cached = this.cache.get<HistoricalBar[]>(cacheKey);
     if (cached) return cached;
