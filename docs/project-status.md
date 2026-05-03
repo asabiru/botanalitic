@@ -73,11 +73,22 @@
 - заказы в памяти
 - сохранение заказов в `tmp/orders.json`
 
+### DevOps / Инфраструктура
+Реализовано:
+- `Dockerfile` для telegram-bot (multi-stage: build + production, Node.js 20 Alpine)
+- `docker-compose.yml` — PostgreSQL 16 + telegram-bot, volumes, healthcheck
+- GitHub Actions CI pipeline (`.github/workflows/ci.yml`) — lint, typecheck, build
+- ESLint (flat config) с `typescript-eslint`
+- Prettier (printWidth: 120, singleQuote: false, semi: true)
+- npm-скрипты `lint`, `lint:fix`, `format` в root и telegram-bot
+- `DATABASE_URL` добавлен в `.env.example`
+
 ### Документация
 Подготовлено:
 - `README.md`
 - `docs/developer-guide.md`
 - `docs/project-status.md`
+- `docs/changelog.md`
 
 ---
 
@@ -164,13 +175,13 @@
 - unit tests
 - integration tests
 - webhook tests
-- CI pipeline
-- lint / formatting policy
+- ~~CI pipeline~~ ✅ done
+- ~~lint / formatting policy~~ ✅ done
 
 ### Priority 7 — Deployment
 Сделать:
-- Docker
-- environment profiles
+- ~~Docker~~ ✅ done
+- ~~environment profiles~~ ✅ done (docker-compose + .env.example)
 - production config
 - process manager
 - monitoring
