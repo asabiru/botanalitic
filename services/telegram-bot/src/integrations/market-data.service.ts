@@ -122,12 +122,22 @@ export class MarketDataService {
     bars: HistoricalBar[],
     quote: MarketQuote | null,
   ): number | null {
-    if (!quote || bars.length < 5) return null;
-    const weekAgoBar = bars[bars.length >= 7 ? bars.length - 7 : 0];
-    if (!weekAgoBar || !weekAgoBar.close) return null;
-    return (
-      ((quote.price - weekAgoBar.close) / weekAgoBar.close) * 100
-    );
+    if (!quote || bars.length === 0) return null;
+
+    const targetTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    let closest = bars[0];
+    let closestDiff = Math.abs(closest.date.getTime() - targetTime);
+
+    for (const bar of bars) {
+      const diff = Math.abs(bar.date.getTime() - targetTime);
+      if (diff < closestDiff) {
+        closest = bar;
+        closestDiff = diff;
+      }
+    }
+
+    if (!closest.close) return null;
+    return ((quote.price - closest.close) / closest.close) * 100;
   }
 
   private emptyContext(): MarketContext {
