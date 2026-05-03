@@ -73,11 +73,21 @@
 - заказы в памяти
 - сохранение заказов в `tmp/orders.json`
 
+### Webhook reliability
+Реализовано:
+- верификация IP-адресов ЮKassa (whitelist)
+- валидация тела webhook через zod-схему
+- идемпотентная обработка (повторный webhook не вызывает повторную доставку)
+- retry-логика отправки аналитики (3 попытки, exponential backoff)
+- структурированное логирование webhook events
+- уведомление админа через `ADMIN_CHAT_ID` при ошибках
+
 ### Документация
 Подготовлено:
 - `README.md`
 - `docs/developer-guide.md`
 - `docs/project-status.md`
+- `docs/changelog.md`
 
 ---
 
@@ -127,12 +137,12 @@
 - заменить file storage на DB
 
 ### Priority 2 — Payment reliability
-Сделать:
-- verify webhook source
-- идемпотентная обработка webhook
-- retry-логика
-- журнал payment events
-- статусы доставки аналитики
+Сделано:
+- ✅ verify webhook source (IP whitelist + zod validation)
+- ✅ идемпотентная обработка webhook
+- ✅ retry-логика (3 попытки, exponential backoff)
+- ✅ журнал payment events (structured JSON logging)
+- ✅ статусы доставки аналитики (delivered/failed + admin notify)
 
 ### Priority 3 — Real AI analysis
 Сделать:
