@@ -35,12 +35,14 @@ function isAllowedIp(ip: string): boolean {
   // Strip IPv6 prefix if present
   const cleanIp = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
 
-  // Allow loopback and private IPs for local development
+  // Allow loopback and private IPs only in non-production environments
+  const isProduction = process.env.NODE_ENV === "production";
   if (
-    cleanIp === "127.0.0.1" ||
-    cleanIp === "::1" ||
-    cleanIp.startsWith("10.") ||
-    cleanIp.startsWith("192.168.")
+    !isProduction &&
+    (cleanIp === "127.0.0.1" ||
+      cleanIp === "::1" ||
+      cleanIp.startsWith("10.") ||
+      cleanIp.startsWith("192.168."))
   ) {
     return true;
   }

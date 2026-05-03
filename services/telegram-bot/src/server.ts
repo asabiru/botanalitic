@@ -89,11 +89,11 @@ export function createServer() {
         return;
       }
 
-      // Also check order store for already delivered/paid orders
+      // Only skip re-processing for fully delivered orders
       const existingOrder = orderStore.getByPaymentId(paymentId);
       if (
         existingOrder &&
-        (existingOrder.status === "paid" || existingOrder.status === "delivered")
+        existingOrder.status === "delivered"
       ) {
         processedPayments.add(paymentId);
         logger.info("Payment already processed (order status check)", {
@@ -141,13 +141,15 @@ export function createServer() {
           investorProfile: order.investorProfile
         });
 
-        // Retry sending analytics to Telegram with exponential backoff
+        // Send confirmation (no retry — it's non-critical)
+        await bot.telegram.sendMessage(
+          order.telegramUserId,
+          "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
+        );
+
+        // Retry only the analysis delivery with exponential backoff
         await withRetry(
           async () => {
-            await bot.telegram.sendMessage(
-              order.telegramUserId,
-              "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
-            );
             await bot.telegram.sendMessage(order.telegramUserId, analysis, {
               parse_mode: "HTML"
             });
