@@ -25,13 +25,18 @@
 root/
   package.json
   .env.example
+  docker-compose.yml
   README.md
   docs/
     developer-guide.md
+    project-status.md
+    changelog.md
   services/
     telegram-bot/
       package.json
       tsconfig.json
+      prisma/
+        schema.prisma
       src/
         index.ts
         config.ts
@@ -40,8 +45,13 @@ root/
         yookassa.ts
         session-store.ts
         order-store.ts
+        order-store-interface.ts
         app-context.ts
         server.ts
+        repositories/
+          index.ts
+          order.repository.ts
+          user.repository.ts
 ```
 
 ### Назначение модулей
@@ -126,20 +136,76 @@ npm run build
 
 ---
 
-## 4. Что нужно сделать в первую очередь дальше
+## 4. Работа с Prisma и PostgreSQL
 
-### Приоритет 1 — База данных
-Сейчас заказы лежат в `tmp/orders.json`, это временное решение.
+### Запуск PostgreSQL
 
-Нужно заменить на:
-- PostgreSQL
-- Prisma ORM
+Для локальной разработки используется Docker:
 
-Минимальные таблицы:
-- users
-- orders
-- payments
-- deliveries
+```bash
+docker-compose up -d
+```
+
+PostgreSQL будет доступен на порте **5433** (чтобы не конфликтовать с локальным PostgreSQL).
+
+### Настройка DATABASE_URL
+
+В `.env` добавь:
+
+```
+DATABASE_URL=postgresql://botanalitic:botanalitic@localhost:5433/botanalitic
+```
+
+Если `DATABASE_URL` не задан — бот автоматически использует файловый fallback (`tmp/orders.json`).
+
+### Генерация Prisma Client
+
+```bash
+cd services/telegram-bot
+npx prisma generate
+```
+
+Клиент генерируется из `services/telegram-bot/prisma/schema.prisma`.
+
+### Создание и применение миграций
+
+```bash
+cd services/telegram-bot
+npx prisma migrate dev --name <migration_name>
+```
+
+Для production:
+```bash
+npx prisma migrate deploy
+```
+
+### Просмотр базы данных
+
+```bash
+cd services/telegram-bot
+npx prisma studio
+```
+
+Откроется веб-интерфейс для просмотра и редактирования данных.
+
+### Prisma schema
+
+Модели описаны в `services/telegram-bot/prisma/schema.prisma`:
+
+- **User** — telegram-пользователи (telegramId BigInt unique)
+- **Order** — заказы на аналитику
+- **Payment** — платежи ЮKassa
+- **Delivery** — статусы доставки аналитики
+
+### Архитектура хранения
+
+```text
+app-context.ts
+  ├─ DATABASE_URL задан? → PrismaClient + PrismaOrderRepository
+  └─ DATABASE_URL нет?   → OrderStore (файловый tmp/orders.json)
+```
+
+Интерфейс `IOrderStore` абстрагирует оба варианта. Все вызовы в `index.ts` и `server.ts` используют `await`.
 
 ---
 

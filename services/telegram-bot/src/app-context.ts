@@ -1,12 +1,29 @@
+import { PrismaClient } from "@prisma/client";
 import { Telegraf } from "telegraf";
 import { config } from "./config.js";
 import { AiAnalysisService } from "./ai-analysis.js";
 import { SessionStore } from "./session-store.js";
 import { YooKassaService } from "./yookassa.js";
 import { OrderStore } from "./order-store.js";
+import { PrismaOrderRepository, PrismaUserRepository } from "./repositories/index.js";
+import type { IOrderStore } from "./order-store-interface.js";
+
+const databaseUrl = process.env.DATABASE_URL;
+
+export const prisma: PrismaClient | null = databaseUrl
+  ? new PrismaClient()
+  : null;
 
 export const sessionStore = new SessionStore();
-export const orderStore = new OrderStore();
+
+export const orderStore: IOrderStore = prisma
+  ? new PrismaOrderRepository(prisma)
+  : new OrderStore();
+
+export const userRepository: PrismaUserRepository | null = prisma
+  ? new PrismaUserRepository(prisma)
+  : null;
+
 export const aiAnalysisService = new AiAnalysisService();
 export const yooKassaService = new YooKassaService();
 export const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);

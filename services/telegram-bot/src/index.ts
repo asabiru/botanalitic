@@ -1,7 +1,7 @@
 import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, orderStore, sessionStore, userRepository, yooKassaService } from "./app-context.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
@@ -20,6 +20,10 @@ function catalogKeyboard() {
 
 bot.start(async (ctx: any) => {
   sessionStore.clear(ctx.from.id);
+
+  if (userRepository) {
+    await userRepository.upsert(ctx.from.id, ctx.from.username);
+  }
 
   await ctx.reply(
     [
@@ -65,7 +69,7 @@ bot.action("buy_help", async (ctx: any) => {
 bot.action("my_orders", async (ctx: any) => {
   await ctx.answerCbQuery();
 
-  const orders = orderStore.listByTelegramUserId(ctx.from.id);
+  const orders = await orderStore.listByTelegramUserId(ctx.from.id);
 
   if (orders.length === 0) {
     await ctx.reply("У вас пока нет заявок.");
@@ -178,7 +182,11 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
 
   const session = sessionStore.get(ctx.from.id);
 
-  const order = orderStore.create({
+  if (userRepository) {
+    await userRepository.upsert(ctx.from.id, ctx.from.username);
+  }
+
+  const order = await orderStore.create({
     telegramUserId: ctx.from.id,
     instrumentId: instrument.id,
     instrumentTitle: instrument.title,
@@ -195,7 +203,7 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
       orderId: order.id
     });
 
-    orderStore.update(order.id, {
+    await orderStore.update(order.id, {
       paymentId: payment.paymentId,
       paymentUrl: payment.confirmationUrl,
       status: "waiting_payment"
@@ -214,7 +222,7 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
     );
   } catch (error: any) {
     console.error("YooKassa createPayment error", error);
-    orderStore.update(order.id, { status: "cancelled" });
+    await orderStore.update(order.id, { status: "cancelled" });
     await ctx.reply("Не удалось создать платёж. Проверьте настройки ЮKassa и попробуйте снова.");
   }
 });
