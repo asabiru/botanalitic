@@ -1,4 +1,4 @@
-import { PrismaClient, Order, OrderStatus } from "@prisma/client";
+import { PrismaClient, Prisma, Order, OrderStatus } from "@prisma/client";
 import type { OrderRecord, OrderStatus as LegacyOrderStatus } from "../order-store.js";
 
 export type CreateOrderInput = {
@@ -78,8 +78,14 @@ export class PrismaOrderRepository {
         data,
       });
       return toOrderRecord(order);
-    } catch {
-      return undefined;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return undefined;
+      }
+      throw error;
     }
   }
 
