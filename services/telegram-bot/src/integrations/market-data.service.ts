@@ -2,8 +2,10 @@ import type { MarketQuote, HistoricalBar, TechnicalSummary } from "./market-data
 import type { NewsItem } from "./news/news.interface.js";
 import type { SentimentData } from "./sentiment/x-sentiment.provider.js";
 import type { TechnicalAnalysisResult } from "./market-data/tradingview.provider.js";
+import type { MarketDataProvider } from "./market-data/provider.interface.js";
 import { MarketCache } from "./cache/market-cache.js";
-import { createProvider } from "./market-data/index.js";
+import { createAllProviders } from "./market-data/index.js";
+import type { ProviderType } from "./instrument-mapper.js";
 import { TradingViewProvider } from "./market-data/tradingview.provider.js";
 import { RssNewsProvider } from "./news/rss-news.provider.js";
 import { InvestingRssProvider } from "./news/investing-rss.provider.js";
@@ -28,6 +30,7 @@ export interface MarketContext {
 
 export class MarketDataService {
   private cache = new MarketCache();
+  private providers: Record<ProviderType, MarketDataProvider>;
   private tradingView: TradingViewProvider;
   private rssNews: RssNewsProvider;
   private investingRss: InvestingRssProvider;
@@ -35,6 +38,7 @@ export class MarketDataService {
   private xSentiment: XSentimentProvider;
 
   constructor() {
+    this.providers = createAllProviders(this.cache);
     this.tradingView = new TradingViewProvider(this.cache);
     this.rssNews = new RssNewsProvider(this.cache);
     this.investingRss = new InvestingRssProvider(this.cache);
@@ -52,7 +56,7 @@ export class MarketDataService {
     }
 
     const symbol = resolveSymbol(instrumentId, ticker);
-    const provider = createProvider(mapping.provider, this.cache);
+    const provider = this.providers[mapping.provider];
     const keywords = getNewsKeywords(instrumentId);
 
     const [quote, historicalBars, news, technical, sentiment] =
