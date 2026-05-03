@@ -45,7 +45,7 @@ export class AiAnalysisService {
 
     const response = await this.openai!.chat.completions.create({
       model: this.model,
-      max_tokens: this.maxTokens,
+      max_completion_tokens: this.maxTokens,
       temperature: 0.7,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
