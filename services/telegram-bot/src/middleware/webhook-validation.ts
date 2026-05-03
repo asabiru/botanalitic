@@ -42,7 +42,8 @@ function isAllowedIp(ip: string): boolean {
     (cleanIp === "127.0.0.1" ||
       cleanIp === "::1" ||
       cleanIp.startsWith("10.") ||
-      cleanIp.startsWith("192.168."))
+      cleanIp.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(cleanIp))
   ) {
     return true;
   }
