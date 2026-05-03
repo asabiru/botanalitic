@@ -1,7 +1,7 @@
 import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, orderStore, sessionStore, userRepository, yooKassaService } from "./app-context.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
@@ -20,6 +20,10 @@ function catalogKeyboard() {
 
 bot.start(async (ctx: any) => {
   sessionStore.clear(ctx.from.id);
+
+  if (userRepository) {
+    await userRepository.upsert(ctx.from.id, ctx.from.username);
+  }
 
   await ctx.reply(
     [
@@ -177,6 +181,10 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
   }
 
   const session = sessionStore.get(ctx.from.id);
+
+  if (userRepository) {
+    await userRepository.upsert(ctx.from.id, ctx.from.username);
+  }
 
   const order = await orderStore.create({
     telegramUserId: ctx.from.id,
