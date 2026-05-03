@@ -79,6 +79,15 @@
 - `docs/developer-guide.md`
 - `docs/project-status.md`
 
+### Маркетинг и продвижение
+Подготовлено:
+- `docs/marketing-strategy.md` — маркетинговая стратегия, УТП, воронка, KPI, реферальная программа
+- `landing/index.html` — адаптивный лендинг (Tailwind CSS, тёмная тема, mobile-first)
+- `docs/content-plan.md` — контент-план для Telegram-канала на 30 дней
+- `marketing/telegram-posts/` — 7 готовых постов для Telegram-канала
+- `docs/seo-copy.md` — SEO-описания, ключевые слова, мета-теги
+- `docs/changelog.md` — журнал изменений
+
 ---
 
 ## 3. Что проверено
