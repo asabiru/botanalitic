@@ -132,7 +132,8 @@ describe("server integration", () => {
       expect(updated!.status).toBe("delivered");
     });
 
-    it("handles idempotent re-delivery", async () => {
+    // TODO: real idempotency guard not yet implemented in server.ts (see Priority 2 in project-status.md)
+    it("does not crash on duplicate webhook delivery", async () => {
       testOrderStore.create({
         telegramUserId: 43,
         instrumentId: "oil",
