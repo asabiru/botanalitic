@@ -105,6 +105,9 @@ export function createServer() {
         return;
       }
 
+      // Mark as in-progress immediately to prevent concurrent duplicates
+      processedPayments.add(paymentId);
+
       try {
         let order = orderStore.getByPaymentId(paymentId);
 
@@ -141,11 +144,13 @@ export function createServer() {
           investorProfile: order.investorProfile
         });
 
-        // Send confirmation (no retry — it's non-critical)
-        await bot.telegram.sendMessage(
-          order.telegramUserId,
-          "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
-        );
+        // Send confirmation only on first processing (not on YooKassa retry)
+        if (!existingOrder || existingOrder.status !== "paid") {
+          await bot.telegram.sendMessage(
+            order.telegramUserId,
+            "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
+          );
+        }
 
         // Retry only the analysis delivery with exponential backoff
         await withRetry(
@@ -158,7 +163,6 @@ export function createServer() {
         );
 
         orderStore.update(order.id, { status: "delivered" });
-        processedPayments.add(paymentId);
 
         logger.info("Payment processed successfully", {
           paymentId,
@@ -176,6 +180,8 @@ export function createServer() {
         await notifyAdmin(
           `Webhook processing failed for paymentId: ${paymentId}\nError: ${errorMessage}`
         );
+        // Remove from in-progress set so YooKassa retry can re-attempt
+        processedPayments.delete(paymentId);
         res.status(500).json({ ok: false, error: "internal_error" });
       }
     }
