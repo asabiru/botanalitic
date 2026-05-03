@@ -48,6 +48,7 @@ export class TradingViewProvider {
       }
 
       const recommend = resp.data.data[0].d[0];
+      if (recommend == null || Number.isNaN(recommend)) return null;
       const summary = this.toSummary(recommend);
 
       const result: TechnicalAnalysisResult = {
