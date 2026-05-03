@@ -66,6 +66,10 @@
 - `GET /health`
 - `POST /webhooks/yookassa`
 - `GET /orders/:telegramUserId`
+- `GET /admin/stats` (protected)
+- `GET /admin/orders` (protected, pagination)
+- `GET /admin/orders/:id` (protected)
+- `POST /admin/orders/:id/resend` (protected)
 
 ### Хранение данных
 Сейчас есть:
@@ -106,7 +110,7 @@
 - нет проверки подлинности webhook ЮKassa
 - нет реального AI pipeline
 - нет реальной агрегации данных из market/news/social providers
-- нет админки
+- ~~нет админки~~ — реализована (Telegram + HTTP + HTML dashboard)
 - нет мониторинга и алертов
 - нет тестов
 - нет Docker/deploy-контура
@@ -151,13 +155,14 @@
 - legal-safe integration strategy
 - abstraction над провайдерами
 
-### Priority 5 — Operations
-Сделать:
-- operator/admin mode
-- просмотр заказов
-- ручная перевыдача аналитики
-- лог действий
-- история платежей
+### Priority 5 — Operations ✅
+Реализовано:
+- Telegram admin commands (`/admin`, `/orders`, `/order`, `/stats`, `/users`, `/resend`, `/broadcast`)
+- admin guard middleware (ADMIN_CHAT_ID)
+- HTTP admin API (`GET /admin/stats`, `GET /admin/orders`, `GET /admin/orders/:id`, `POST /admin/orders/:id/resend`)
+- HTTP admin API key protection (X-Admin-Key header, ADMIN_API_KEY env)
+- HTML admin dashboard (Tailwind CSS, тёмная тема, карточки статистики, таблица заказов, пагинация, кнопка перевыдачи)
+- audit log (tmp/audit.log)
 
 ### Priority 6 — Quality
 Сделать:

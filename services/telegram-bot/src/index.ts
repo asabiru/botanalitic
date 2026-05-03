@@ -2,6 +2,16 @@ import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { createServer } from "./server.js";
 import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { adminGuard } from "./admin/admin-guard.js";
+import {
+  handleAdminMenu,
+  handleOrders,
+  handleOrderDetail,
+  handleStats,
+  handleUsers,
+  handleResend,
+  handleBroadcast
+} from "./admin/admin-handlers.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
@@ -17,6 +27,14 @@ function catalogKeyboard() {
     instrumentCatalog.map((item) => [Markup.button.callback(`${item.title} — ${item.priceRub} ₽`, `instrument:${item.id}`)])
   );
 }
+
+bot.command("admin", adminGuard, handleAdminMenu);
+bot.command("orders", adminGuard, handleOrders);
+bot.command("order", adminGuard, handleOrderDetail);
+bot.command("stats", adminGuard, handleStats);
+bot.command("users", adminGuard, handleUsers);
+bot.command("resend", adminGuard, handleResend);
+bot.command("broadcast", adminGuard, handleBroadcast);
 
 bot.start(async (ctx: any) => {
   sessionStore.clear(ctx.from.id);
