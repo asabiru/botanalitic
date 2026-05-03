@@ -1,0 +1,81 @@
+/* AI Market View — Landing Page Styles */
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Details/Summary animation */
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] > summary {
+  color: #818cf8;
+}
+
+/* Card hover effects */
+.group:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+/* Gradient text fallback */
+@supports not (background-clip: text) {
+  .bg-clip-text {
+    color: #818cf8;
+  }
+}
+
+/* Mobile menu (basic) */
+@media (max-width: 767px) {
+  header nav {
+    display: none;
+  }
+}
+
+/* Responsive font scaling */
+@media (max-width: 640px) {
+  h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+  
+  h2 {
+    font-size: 1.75rem;
+  }
+}
+
+/* Animation for hero elements */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+section:first-of-type > div > * {
+  animation: fadeInUp 0.6s ease-out;
+}

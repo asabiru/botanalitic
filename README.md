@@ -156,6 +156,17 @@ GET /orders/:telegramUserId
 
 ---
 
+## Маркетинг
+
+- **Лендинг:** [`landing/index.html`](landing/index.html) — адаптивный лендинг с тёмной темой (Tailwind CSS)
+- **Маркетинговая стратегия:** [`docs/marketing-strategy.md`](docs/marketing-strategy.md) — ЦА, УТП, каналы, воронка, KPI, реферальная программа
+- **Контент-план:** [`docs/content-plan.md`](docs/content-plan.md) — план постов для Telegram-канала на 30 дней
+- **Готовые посты:** [`marketing/telegram-posts/`](marketing/telegram-posts/) — 7 постов для Telegram-канала
+- **SEO:** [`docs/seo-copy.md`](docs/seo-copy.md) — описания для BotFather, каталогов, мета-теги
+- **Changelog:** [`docs/changelog.md`](docs/changelog.md)
+
+---
+
 ## Ограничения текущей версии
 
 Сейчас это **не production-ready финальная версия**.
