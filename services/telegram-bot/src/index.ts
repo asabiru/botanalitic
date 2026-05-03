@@ -1,7 +1,7 @@
 import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, marketDataService, orderStore, sessionStore, yooKassaService } from "./app-context.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
@@ -157,10 +157,19 @@ bot.action(/^demo:(.+)$/, async (ctx: any) => {
   }
 
   const session = sessionStore.get(ctx.from.id);
+
+  let marketContext;
+  try {
+    marketContext = await marketDataService.getMarketContext(instrument.id, session.ticker);
+  } catch (err) {
+    console.error("Failed to fetch market context:", err);
+  }
+
   const analysis = await aiAnalysisService.generateAnalysis({
     instrument,
     ticker: session.ticker,
-    investorProfile: session.investorProfile
+    investorProfile: session.investorProfile,
+    marketContext
   });
 
   await ctx.reply(analysis, { parse_mode: "HTML" });

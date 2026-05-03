@@ -1,5 +1,5 @@
 import express from "express";
-import { bot, orderStore, aiAnalysisService } from "./app-context.js";
+import { bot, orderStore, aiAnalysisService, marketDataService } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 
 type YooKassaWebhookEvent = {
@@ -54,10 +54,18 @@ export function createServer() {
       return;
     }
 
+    let marketContext;
+    try {
+      marketContext = await marketDataService.getMarketContext(instrument.id, order.ticker);
+    } catch (err) {
+      console.error("Failed to fetch market context for paid analysis:", err);
+    }
+
     const analysis = await aiAnalysisService.generateAnalysis({
       instrument,
       ticker: order.ticker,
-      investorProfile: order.investorProfile
+      investorProfile: order.investorProfile,
+      marketContext
     });
 
     await bot.telegram.sendMessage(
