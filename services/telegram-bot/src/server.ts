@@ -107,6 +107,7 @@ export function createServer() {
 
       // Mark as in-progress immediately to prevent concurrent duplicates
       processedPayments.add(paymentId);
+      let delivered = false;
 
       try {
         let order = orderStore.getByPaymentId(paymentId);
@@ -163,6 +164,7 @@ export function createServer() {
         );
 
         orderStore.update(order.id, { status: "delivered" });
+        delivered = true;
 
         logger.info("Payment processed successfully", {
           paymentId,
@@ -180,9 +182,12 @@ export function createServer() {
         await notifyAdmin(
           `Webhook processing failed for paymentId: ${paymentId}\nError: ${errorMessage}`
         );
-        // Remove from in-progress set so YooKassa retry can re-attempt
-        processedPayments.delete(paymentId);
         res.status(500).json({ ok: false, error: "internal_error" });
+      } finally {
+        // Only keep in processedPayments if delivery succeeded; otherwise allow retry
+        if (!delivered) {
+          processedPayments.delete(paymentId);
+        }
       }
     }
   );
