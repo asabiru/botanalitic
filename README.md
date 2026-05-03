@@ -1,80 +1,119 @@
 # AI Market View Bot
 
-Telegram-бот для продажи аналитики по финансовым инструментам с оплатой через **ЮKassa** и автоматической выдачей результата после webhook-подтверждения оплаты.
+Telegram-бот для продажи аналитики по финансовым инструментам с оплатой через **ЮKassa** и базовой автоматической выдачей результата после подтверждения оплаты.
+
+## Статус проекта
+
+**Текущий статус:** рабочий MVP+.
+
+Проект уже:
+- собирается
+- проходит typecheck
+- запускается локально
+- поддерживает каталог инструментов
+- умеет создавать оплату через ЮKassa
+- умеет принимать webhook подтверждения оплаты
+- умеет отправлять результат пользователю в Telegram
+- подготовлен для дальнейшего развития
+
+Подробный статус смотри в:
+- [`docs/project-status.md`](docs/project-status.md)
+- [`docs/developer-guide.md`](docs/developer-guide.md)
+
+---
 
 ## Что уже реализовано
 
-- Telegram-бот на **Telegraf**
-- HTTP backend на **Express**
-- Каталог инструментов:
-  - 🇨🇳 Юань/Рубль
-  - 💵 Доллар/Рубль
-  - 🛢 Нефть
-  - 🔵 Газ
-  - 🥇 Золото
-  - 🥈 Серебро
-  - 🇺🇸 Акции США
-  - 📈 Акции РФ
-  - 🇷🇺 Индекс Мосбиржи
-  - 🇷🇺 Индекс RGBI
-  - ₿ Криптовалюты
-  - 🇪🇺 Евро/Доллар
-- Демо-выдача аналитики
-- Создание ссылки на оплату через ЮKassa
-- Webhook endpoint для подтверждения оплаты
-- In-memory хранение заявок, платежей и пользовательской сессии
-- Endpoint просмотра заказов пользователя
-- Подготовленная точка расширения под AI-анализ
+### Telegram bot flow
+- `/start`
+- главное меню
+- каталог аналитики
+- выбор инструмента
+- ввод тикера
+- демо-анализ
+- оформление заказа
+- просмотр заявок пользователя
 
-## Архитектура MVP
+### Оплата
+- создание заказа до оплаты
+- создание ссылки ЮKassa
+- привязка `orderId` к payment metadata
+- webhook `payment.succeeded`
+- автоматическая отправка аналитики после оплаты
+
+### Backend
+- Express HTTP server
+- `GET /health`
+- `POST /webhooks/yookassa`
+- `GET /orders/:telegramUserId`
+
+### Хранение
+- user session store в памяти
+- order store в памяти
+- сохранение заказов в `tmp/orders.json`
+
+---
+
+## Поддерживаемые инструменты
+
+- 🇨🇳 Юань/Рубль
+- 💵 Доллар/Рубль
+- 🛢 Нефть
+- 🔵 Газ
+- 🥇 Золото
+- 🥈 Серебро
+- 🇺🇸 Акции США
+- 📈 Акции РФ
+- 🇷🇺 Индекс Мосбиржи
+- 🇷🇺 Индекс RGBI
+- ₿ Криптовалюты
+- 🇪🇺 Евро/Доллар
+
+---
+
+## Архитектура проекта
 
 ```text
-services/telegram-bot/
-  src/
-    index.ts           # Telegram bot + HTTP server bootstrap
-    config.ts          # env-конфигурация
-    catalog.ts         # каталог инструментов и цены
-    ai-analysis.ts     # генерация демо-аналитики
-    yookassa.ts        # создание платежа в ЮKassa
-    session-store.ts   # in-memory session store
-    order-store.ts     # in-memory order store
-    app-context.ts     # shared singletons
-    server.ts          # Express routes / webhook
+root/
+  package.json
+  package-lock.json
+  .env.example
+  README.md
+  docs/
+    developer-guide.md
+    project-status.md
+  services/
+    telegram-bot/
+      package.json
+      tsconfig.json
+      src/
+        index.ts
+        config.ts
+        catalog.ts
+        ai-analysis.ts
+        yookassa.ts
+        session-store.ts
+        order-store.ts
+        app-context.ts
+        server.ts
 ```
 
-## Поведение MVP
-
-### Пользовательский сценарий
-1. Пользователь заходит в бота
-2. Выбирает рынок или инструмент
-3. При необходимости отправляет тикер
-4. Бот создаёт заказ
-5. Бот создаёт ссылку на оплату через ЮKassa
-6. После webhook `payment.succeeded` бот автоматически отправляет аналитику в Telegram
-
-### Доступные команды/сценарии
-- `/start`
-- каталог аналитики
-- демо-анализ
-- мои заявки
-- оформление заказа
-- автоматическая выдача после webhook
+---
 
 ## Быстрый старт
 
 ### 1. Установить зависимости
-
 ```bash
-pnpm install
+npm install
 ```
 
 ### 2. Создать `.env`
-
 ```bash
 copy .env.example .env
 ```
 
-Заполнить:
+### 3. Заполнить переменные окружения
+Обязательно:
 - `TELEGRAM_BOT_TOKEN`
 - `YOOKASSA_SHOP_ID`
 - `YOOKASSA_SECRET_KEY`
@@ -85,11 +124,18 @@ copy .env.example .env
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 
-### 3. Запуск
-
+### 4. Запуск в dev-режиме
 ```bash
-pnpm dev
+npm run dev
 ```
+
+### 5. Проверка проекта
+```bash
+npm run typecheck
+npm run build
+```
+
+---
 
 ## HTTP endpoints
 
@@ -98,44 +144,56 @@ pnpm dev
 GET /health
 ```
 
-### Webhook ЮKassa
+### YooKassa webhook
 ```http
 POST /webhooks/yookassa
 ```
 
-Ожидается событие:
-- `payment.succeeded`
-
-### Заказы пользователя
+### Orders by telegram user
 ```http
 GET /orders/:telegramUserId
 ```
 
-## Важно про текущее состояние
+---
 
-Сейчас это **MVP без постоянной БД**.
+## Ограничения текущей версии
 
-### Ограничения текущей версии
-- данные заказов хранятся в памяти процесса
-- после рестарта данные теряются
-- webhook не подписывается дополнительной верификацией
-- AI-анализ пока демо-формата
-- нет админ-панели
-- нет production-логики повторных доставок и retry
+Сейчас это **не production-ready финальная версия**.
 
-## Что рекомендую делать следующим этапом
+Пока не реализовано:
+- PostgreSQL
+- Prisma
+- полноценная webhook verification
+- queue/retry механизм
+- real AI pipeline
+- data provider integrations
+- tests
+- Docker/deploy pipeline
+- admin/operator tools
+- legal docs package
 
-1. Подключить PostgreSQL
-2. Сохранение заказов и платежей в БД
-3. Проверку подписи/валидацию webhook ЮKassa
-4. Интеграцию с OpenAI/LLM для реального анализа
-5. Очередь задач на генерацию аналитики
-6. Сбор данных из внешних источников
-7. Операторский кабинет / CRM
-8. Юридические тексты: оферта, disclaimer, privacy policy
+---
+
+## Что делать дальше
+
+Рекомендуемый порядок:
+1. PostgreSQL + Prisma
+2. webhook reliability
+3. real AI integration
+4. market/news/social providers
+5. admin tools
+6. tests
+7. deploy & monitoring
+8. legal/commercial layer
+
+Подробно:
+- [`docs/project-status.md`](docs/project-status.md)
+- [`docs/developer-guide.md`](docs/developer-guide.md)
+
+---
 
 ## Важно
 
-Материалы бота должны сопровождаться дисклеймером:
+Аналитические материалы должны сопровождаться дисклеймером:
 
 > Информация носит ознакомительный характер и не является индивидуальной инвестиционной рекомендацией.
