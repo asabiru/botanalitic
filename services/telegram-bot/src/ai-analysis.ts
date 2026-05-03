@@ -100,6 +100,7 @@ export class AiAnalysisService {
 }
 
 const HTML_TAGS = ["b", "i", "u", "code", "pre"] as const;
+const MAX_CLOSING_RESERVE = HTML_TAGS.reduce((sum, t) => sum + t.length + 3, 0);
 
 function getOpenTags(text: string): string[] {
   const stack: string[] = [];
@@ -129,10 +130,9 @@ function splitForTelegram(text: string): string[] {
 
   while (remaining.length > 0) {
     const prefix = inheritedOpenTags.map((t) => `<${t}>`).join("");
-    const maxClosing = inheritedOpenTags.reduce((sum, t) => sum + t.length + 3, 0);
-    const available = TELEGRAM_MSG_LIMIT - prefix.length - maxClosing;
+    const available = TELEGRAM_MSG_LIMIT - prefix.length - MAX_CLOSING_RESERVE;
 
-    if (prefix.length + remaining.length + maxClosing <= TELEGRAM_MSG_LIMIT) {
+    if (prefix.length + remaining.length + MAX_CLOSING_RESERVE <= TELEGRAM_MSG_LIMIT) {
       chunks.push(prefix + remaining);
       break;
     }
