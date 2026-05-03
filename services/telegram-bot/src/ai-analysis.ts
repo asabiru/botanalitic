@@ -129,9 +129,10 @@ function splitForTelegram(text: string): string[] {
 
   while (remaining.length > 0) {
     const prefix = inheritedOpenTags.map((t) => `<${t}>`).join("");
-    const available = TELEGRAM_MSG_LIMIT - prefix.length;
+    const maxClosing = inheritedOpenTags.reduce((sum, t) => sum + t.length + 3, 0);
+    const available = TELEGRAM_MSG_LIMIT - prefix.length - maxClosing;
 
-    if (prefix.length + remaining.length <= TELEGRAM_MSG_LIMIT) {
+    if (prefix.length + remaining.length + maxClosing <= TELEGRAM_MSG_LIMIT) {
       chunks.push(prefix + remaining);
       break;
     }
