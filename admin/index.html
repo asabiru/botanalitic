@@ -163,12 +163,9 @@
       try {
         const status = document.getElementById('filterStatus').value;
         let url = `/admin/orders?page=${page}&limit=${LIMIT}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
         const data = await apiFetch(url);
-        let orders = data.orders;
-
-        if (status) {
-          orders = orders.filter((o) => o.status === status);
-        }
+        const orders = data.orders;
 
         const tbody = document.getElementById('ordersBody');
         tbody.innerHTML = '';
@@ -220,7 +217,14 @@
       if (!confirm('Перевыдать аналитику по этому заказу?')) return;
 
       try {
-        await apiFetch(`/admin/orders/${orderId}/resend`);
+        const res = await fetch(getBaseUrl() + `/admin/orders/${orderId}/resend`, {
+          method: 'POST',
+          headers: { 'X-Admin-Key': getKey() },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
         document.getElementById('statusMsg').textContent = 'Аналитика отправлена повторно.';
       } catch (e) {
         document.getElementById('statusMsg').textContent = 'Ошибка перевыдачи: ' + e.message;

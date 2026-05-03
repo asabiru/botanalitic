@@ -130,7 +130,11 @@ export function createServer() {
     auditLog("http_orders", "api");
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
-    const all = orderStore.listAll();
+    const status = req.query.status as string | undefined;
+    let all = orderStore.listAll();
+    if (status) {
+      all = all.filter((o) => o.status === status);
+    }
     const start = (page - 1) * limit;
     const orders = all.slice(start, start + limit);
 

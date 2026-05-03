@@ -39,9 +39,15 @@ export async function handleOrders(ctx: any): Promise<void> {
   });
 }
 
+function extractArg(text: string, command: string): string {
+  const idx = text.indexOf(" ");
+  if (idx === -1) return "";
+  return text.slice(idx + 1).trim();
+}
+
 export async function handleOrderDetail(ctx: any): Promise<void> {
   const text: string = ctx.message?.text ?? "";
-  const orderId = text.replace(/^\/order\s+/i, "").trim();
+  const orderId = extractArg(text, "order");
 
   if (!orderId) {
     await ctx.reply("Использование: /order <id>");
@@ -105,7 +111,7 @@ export async function handleUsers(ctx: any): Promise<void> {
 
 export async function handleResend(ctx: any): Promise<void> {
   const text: string = ctx.message?.text ?? "";
-  const orderId = text.replace(/^\/resend\s+/i, "").trim();
+  const orderId = extractArg(text, "resend");
 
   if (!orderId) {
     await ctx.reply("Использование: /resend <orderId>");
@@ -154,7 +160,7 @@ export async function handleResend(ctx: any): Promise<void> {
 
 export async function handleBroadcast(ctx: any): Promise<void> {
   const text: string = ctx.message?.text ?? "";
-  const message = text.replace(/^\/broadcast\s+/i, "").trim();
+  const message = extractArg(text, "broadcast");
 
   if (!message) {
     await ctx.reply("Использование: /broadcast <текст сообщения>");
