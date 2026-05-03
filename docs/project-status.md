@@ -87,10 +87,13 @@
 - `npm install`
 - `npm run typecheck`
 - `npm run build`
+- `npm run test`
+- `npm run test:coverage`
 
 Статус:
 - typecheck ✅
 - build ✅
+- tests ✅ (65 тестов, coverage > 70%)
 
 ---
 
@@ -108,7 +111,6 @@
 - нет реальной агрегации данных из market/news/social providers
 - нет админки
 - нет мониторинга и алертов
-- нет тестов
 - нет Docker/deploy-контура
 - нет юридического пакета документов
 
@@ -159,13 +161,16 @@
 - лог действий
 - история платежей
 
-### Priority 6 — Quality
-Сделать:
-- unit tests
-- integration tests
-- webhook tests
-- CI pipeline
+### Priority 6 — Quality ✅ (частично)
+Сделано:
+- unit tests (catalog, session-store, order-store, ai-analysis, config, yookassa)
+- integration tests (server: health, webhook, orders)
+- CI pipeline (GitHub Actions: build + test)
+- coverage > 70%
+
+Осталось:
 - lint / formatting policy
+- e2e tests
 
 ### Priority 7 — Deployment
 Сделать:

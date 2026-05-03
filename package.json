@@ -10,7 +10,9 @@
     "dev": "npm run dev --workspace telegram-bot",
     "build": "npm run build --workspace telegram-bot",
     "start": "npm run start --workspace telegram-bot",
-    "typecheck": "npm run typecheck --workspace telegram-bot"
+    "typecheck": "npm run typecheck --workspace telegram-bot",
+    "test": "npm run test --workspace telegram-bot",
+    "test:coverage": "npm run test:coverage --workspace telegram-bot"
   },
   "engines": {
     "node": ">=20"
