@@ -65,9 +65,11 @@ export function createServer() {
       "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
     );
 
-    await bot.telegram.sendMessage(order.telegramUserId, analysis, {
-      parse_mode: "HTML"
-    });
+    for (const chunk of analysis) {
+      await bot.telegram.sendMessage(order.telegramUserId, chunk, {
+        parse_mode: "HTML"
+      });
+    }
 
     orderStore.update(order.id, { status: "delivered" });
 
