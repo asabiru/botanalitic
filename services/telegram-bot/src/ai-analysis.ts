@@ -1,4 +1,6 @@
+import type OpenAI from "openai";
 import { InstrumentCategory } from "./catalog.js";
+import { buildUserPrompt, DISCLAIMER, SYSTEM_PROMPT } from "./ai/prompt-templates.js";
 
 type AnalysisRequest = {
   instrument: InstrumentCategory;
@@ -7,8 +9,58 @@ type AnalysisRequest = {
 };
 
 export class AiAnalysisService {
+  private openai: OpenAI | null;
+  private model: string;
+  private maxTokens: number;
+
+  constructor(openai: OpenAI | null, model: string, maxTokens: number) {
+    this.openai = openai;
+    this.model = model;
+    this.maxTokens = maxTokens;
+  }
+
   async generateAnalysis(request: AnalysisRequest): Promise<string> {
-    const tickerLine = request.ticker ? `Тикер клиента: ${request.ticker}` : "Тикер не требуется.";
+    if (this.openai) {
+      try {
+        return await this.generateWithOpenAI(request);
+      } catch (error) {
+        console.error("[AiAnalysisService] OpenAI error, falling back to demo:", error);
+        return this.generateDemo(request);
+      }
+    }
+    return this.generateDemo(request);
+  }
+
+  private async generateWithOpenAI(request: AnalysisRequest): Promise<string> {
+    const userPrompt = buildUserPrompt(
+      request.instrument,
+      request.ticker,
+      request.investorProfile
+    );
+
+    const response = await this.openai!.chat.completions.create({
+      model: this.model,
+      max_tokens: this.maxTokens,
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt }
+      ]
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("Empty response from OpenAI");
+    }
+
+    const header = `📊 <b>AI Market View — анализ: ${request.instrument.title}</b>\n\n`;
+    return header + content.trim() + DISCLAIMER;
+  }
+
+  private generateDemo(request: AnalysisRequest): string {
+    const tickerLine = request.ticker
+      ? `Тикер клиента: ${request.ticker}`
+      : "Тикер не требуется.";
     const profileLine = request.investorProfile
       ? `Профиль клиента: ${request.investorProfile}`
       : "Профиль клиента: не указан.";
@@ -20,27 +72,24 @@ export class AiAnalysisService {
       tickerLine,
       profileLine,
       "",
-      "<b>1. Базовый сценарий</b>",
+      "<b>1. Обзор рынка</b>",
       "Рынок сохраняет умеренную волатильность, а ключевым драйвером выступают новости по ставкам, макростатистика и технические уровни.",
       "",
-      "<b>2. Что смотрим</b>",
-      "• направление основного тренда",
-      "• уровни поддержки/сопротивления",
-      "• объёмы и импульс",
-      "• новостной фон и риск-события",
+      "<b>2. Ключевые уровни</b>",
+      "• Поддержка: определяется на основе технического анализа",
+      "• Сопротивление: определяется на основе технического анализа",
       "",
       "<b>3. Сценарии</b>",
-      "• Позитивный: пробой ключевого сопротивления и закрепление выше него.",
-      "• Нейтральный: консолидация в диапазоне и ожидание нового драйвера.",
-      "• Негативный: пробой поддержки и ускорение снижения.",
+      "• <b>Позитивный:</b> пробой ключевого сопротивления и закрепление выше него.",
+      "• <b>Нейтральный:</b> консолидация в диапазоне и ожидание нового драйвера.",
+      "• <b>Негативный:</b> пробой поддержки и ускорение снижения.",
       "",
       "<b>4. Риски</b>",
       "Высокая волатильность, внезапные новости, изменение ожиданий по ставкам, геополитика.",
       "",
       "<b>5. Идея для клиента</b>",
       `${request.instrument.promptHint} Добавь понятные уровни входа, отмены сценария и горизонты.`,
-      "",
-      "⚠️ Материал носит информационный характер и не является индивидуальной инвестиционной рекомендацией."
+      DISCLAIMER
     ].join("\n");
   }
 }
