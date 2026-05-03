@@ -3,6 +3,9 @@ export type UserSession = {
   ticker?: string;
   investorProfile?: string;
   lastPaymentId?: string;
+  appliedPromoCode?: string;
+  referralCode?: string;
+  awaitingPromoInput?: boolean;
 };
 
 export class SessionStore {
