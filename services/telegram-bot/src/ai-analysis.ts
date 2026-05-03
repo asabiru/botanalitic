@@ -2,6 +2,8 @@ import type OpenAI from "openai";
 import { InstrumentCategory } from "./catalog.js";
 import { buildUserPrompt, DISCLAIMER, SYSTEM_PROMPT } from "./ai/prompt-templates.js";
 
+const TELEGRAM_MSG_LIMIT = 4096;
+
 type AnalysisRequest = {
   instrument: InstrumentCategory;
   ticker?: string;
@@ -19,16 +21,19 @@ export class AiAnalysisService {
     this.maxTokens = maxTokens;
   }
 
-  async generateAnalysis(request: AnalysisRequest): Promise<string> {
+  async generateAnalysis(request: AnalysisRequest): Promise<string[]> {
+    let text: string;
     if (this.openai) {
       try {
-        return await this.generateWithOpenAI(request);
+        text = await this.generateWithOpenAI(request);
       } catch (error) {
         console.error("[AiAnalysisService] OpenAI error, falling back to demo:", error);
-        return this.generateDemo(request);
+        text = this.generateDemo(request);
       }
+    } else {
+      text = this.generateDemo(request);
     }
-    return this.generateDemo(request);
+    return splitForTelegram(text);
   }
 
   private async generateWithOpenAI(request: AnalysisRequest): Promise<string> {
@@ -92,4 +97,33 @@ export class AiAnalysisService {
       DISCLAIMER
     ].join("\n");
   }
+}
+
+function splitForTelegram(text: string): string[] {
+  if (text.length <= TELEGRAM_MSG_LIMIT) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= TELEGRAM_MSG_LIMIT) {
+      chunks.push(remaining);
+      break;
+    }
+
+    let splitAt = remaining.lastIndexOf("\n\n", TELEGRAM_MSG_LIMIT);
+    if (splitAt <= 0) {
+      splitAt = remaining.lastIndexOf("\n", TELEGRAM_MSG_LIMIT);
+    }
+    if (splitAt <= 0) {
+      splitAt = TELEGRAM_MSG_LIMIT;
+    }
+
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt).replace(/^\n+/, "");
+  }
+
+  return chunks;
 }
