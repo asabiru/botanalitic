@@ -170,7 +170,7 @@ GET /orders/:telegramUserId
 - tests
 - Docker/deploy pipeline
 - admin/operator tools
-- legal docs package
+- ~~legal docs package~~ → реализовано (docs/legal/)
 
 ---
 
@@ -189,6 +189,27 @@ GET /orders/:telegramUserId
 Подробно:
 - [`docs/project-status.md`](docs/project-status.md)
 - [`docs/developer-guide.md`](docs/developer-guide.md)
+
+---
+
+## Юридическая информация
+
+Полный юридический пакет документов расположен в [`docs/legal/`](docs/legal/):
+
+| Документ | Файл |
+|---|---|
+| Публичная оферта | [`docs/legal/offer.md`](docs/legal/offer.md) |
+| Политика конфиденциальности | [`docs/legal/privacy-policy.md`](docs/legal/privacy-policy.md) |
+| Пользовательское соглашение | [`docs/legal/terms-of-service.md`](docs/legal/terms-of-service.md) |
+| Политика возвратов | [`docs/legal/refund-policy.md`](docs/legal/refund-policy.md) |
+| Дисклеймер | [`docs/legal/disclaimer.md`](docs/legal/disclaimer.md) |
+| Тарифы и описание услуг | [`docs/legal/pricing.md`](docs/legal/pricing.md) |
+
+В боте доступна команда `/legal` и кнопка «Юридическая информация» в главном меню.
+
+Константы для встраивания дисклеймера в ответы бота — в `services/telegram-bot/src/legal/legal-texts.ts`.
+
+> ⚠ Реквизиты ИП/ООО в документах оставлены как шаблон для заполнения владельцем.
 
 ---
 
