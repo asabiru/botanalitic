@@ -99,6 +99,25 @@ export class AiAnalysisService {
   }
 }
 
+const HTML_TAGS = ["b", "i", "u", "code", "pre"] as const;
+
+function getOpenTags(text: string): string[] {
+  const stack: string[] = [];
+  const combined = new RegExp(`<(/?)\\b(${HTML_TAGS.join("|")})\\b>`, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = combined.exec(text)) !== null) {
+    const isClose = m[1] === "/";
+    const tag = m[2].toLowerCase();
+    if (isClose) {
+      const idx = stack.lastIndexOf(tag);
+      if (idx !== -1) stack.splice(idx, 1);
+    } else {
+      stack.push(tag);
+    }
+  }
+  return stack;
+}
+
 function splitForTelegram(text: string): string[] {
   if (text.length <= TELEGRAM_MSG_LIMIT) {
     return [text];
@@ -106,22 +125,35 @@ function splitForTelegram(text: string): string[] {
 
   const chunks: string[] = [];
   let remaining = text;
+  let inheritedOpenTags: string[] = [];
 
   while (remaining.length > 0) {
-    if (remaining.length <= TELEGRAM_MSG_LIMIT) {
-      chunks.push(remaining);
+    const prefix = inheritedOpenTags.map((t) => `<${t}>`).join("");
+    const available = TELEGRAM_MSG_LIMIT - prefix.length;
+
+    if (prefix.length + remaining.length <= TELEGRAM_MSG_LIMIT) {
+      chunks.push(prefix + remaining);
       break;
     }
 
-    let splitAt = remaining.lastIndexOf("\n\n", TELEGRAM_MSG_LIMIT);
+    let splitAt = remaining.lastIndexOf("\n\n", available);
     if (splitAt <= 0) {
-      splitAt = remaining.lastIndexOf("\n", TELEGRAM_MSG_LIMIT);
+      splitAt = remaining.lastIndexOf("\n", available);
     }
     if (splitAt <= 0) {
-      splitAt = TELEGRAM_MSG_LIMIT;
+      splitAt = available;
     }
 
-    chunks.push(remaining.slice(0, splitAt));
+    const rawChunk = remaining.slice(0, splitAt);
+    const openTags = getOpenTags(prefix + rawChunk);
+    const closingSuffix = openTags
+      .slice()
+      .reverse()
+      .map((t) => `</${t}>`)
+      .join("");
+
+    chunks.push(prefix + rawChunk + closingSuffix);
+    inheritedOpenTags = openTags;
     remaining = remaining.slice(splitAt).replace(/^\n+/, "");
   }
 
