@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: botanalitic
+      POSTGRES_PASSWORD: botanalitic
+      POSTGRES_DB: botanalitic
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botanalitic"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: services/telegram-bot/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://botanalitic:botanalitic@postgres:5432/botanalitic
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

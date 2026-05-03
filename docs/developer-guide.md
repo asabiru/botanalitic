@@ -126,7 +126,88 @@ npm run build
 
 ---
 
-## 4. Что нужно сделать в первую очередь дальше
+## 4. Docker
+
+### Запуск через Docker Compose
+
+```bash
+# Создай .env файл
+cp .env.example .env
+# Заполни обязательные переменные
+
+# Поднять PostgreSQL + telegram-bot
+docker compose up -d
+
+# Посмотреть логи
+docker compose logs -f telegram-bot
+
+# Остановить
+docker compose down
+```
+
+PostgreSQL доступен на порту `5433` (host) → `5432` (container).
+
+Credentials для локальной разработки:
+- user: `botanalitic`
+- password: `botanalitic`
+- database: `botanalitic`
+- `DATABASE_URL=postgresql://botanalitic:botanalitic@localhost:5433/botanalitic`
+
+### Сборка Docker-образа вручную
+
+```bash
+docker build -f services/telegram-bot/Dockerfile -t telegram-bot .
+```
+
+---
+
+## 5. CI/CD
+
+GitHub Actions CI запускается автоматически:
+- на push в `main`
+- на pull request в `main`
+
+### Jobs:
+1. **Lint** — `npm run lint` (ESLint)
+2. **Typecheck** — `npm run typecheck` (tsc --noEmit)
+3. **Build** — `npm run build` (tsc) — запускается после typecheck
+
+Конфигурация: `.github/workflows/ci.yml`
+
+---
+
+## 6. Линтинг и форматирование
+
+### ESLint
+
+```bash
+# Проверка
+npm run lint
+
+# Автоисправление
+npm run lint:fix
+```
+
+Конфигурация: `eslint.config.js` (flat config)
+- `typescript-eslint` для TypeScript
+- `no-explicit-any` — warning
+- `no-unused-vars` — warning (с игнорированием `_`-префиксов)
+
+### Prettier
+
+```bash
+# Форматирование всех файлов
+npm run format
+```
+
+Конфигурация: `.prettierrc`
+- `printWidth: 120`
+- `singleQuote: false`
+- `semi: true`
+
+---
+
+## 7. Что нужно сделать в первую очередь дальше
 
 ### Приоритет 1 — База данных
 Сейчас заказы лежат в `tmp/orders.json`, это временное решение.
@@ -143,7 +224,7 @@ npm run build
 
 ---
 
-## 5. Как лучше развивать проект
+## 8. Как лучше развивать проект
 
 ### Этап 1 — Persistence
 Сделать:
@@ -181,7 +262,7 @@ npm run build
 
 ---
 
-## 6. Как менять каталог инструментов
+## 9. Как менять каталог инструментов
 
 Редактируй файл:
 
@@ -197,7 +278,7 @@ services/telegram-bot/src/catalog.ts
 
 ---
 
-## 7. Как подключить реальный OpenAI
+## 10. Как подключить реальный OpenAI
 
 Сейчас `ai-analysis.ts` возвращает демо-текст.
 
@@ -211,7 +292,7 @@ services/telegram-bot/src/catalog.ts
 
 ---
 
-## 8. Как подключить сбор данных
+## 11. Как подключить сбор данных
 
 Важно: некоторые источники имеют ограничения по лицензии, scraping и условиям использования.
 
@@ -234,7 +315,7 @@ src/
 
 ---
 
-## 9. Что важно не сломать
+## 12. Что важно не сломать
 
 При доработках следи за инвариантами:
 
@@ -247,7 +328,7 @@ src/
 
 ---
 
-## 10. Как публиковать на GitHub
+## 13. Как публиковать на GitHub
 
 ### Инициализация
 ```bash
@@ -268,7 +349,7 @@ git push -u origin main
 
 ---
 
-## 11. Что я бы делал следующим коммитом
+## 14. Что я бы делал следующим коммитом
 
 Рекомендую следующую последовательность:
 
@@ -286,7 +367,7 @@ git push -u origin main
 
 ---
 
-## 12. Идеальный target state проекта
+## 15. Идеальный target state проекта
 
 Если доводить до сильной production-версии, то нужно:
 
@@ -307,7 +388,7 @@ git push -u origin main
 
 ---
 
-## 13. Если будешь продолжать сам
+## 16. Если будешь продолжать сам
 
 Лучший практический путь:
 1. сначала БД
