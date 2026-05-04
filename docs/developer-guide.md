@@ -10,12 +10,14 @@
 
 ### Ключевые возможности:
 - 12 финансовых инструментов (валюты, сырьё, акции, индексы, крипто)
-- Котировки в реальном времени из Yahoo Finance, MOEX ISS, CoinGecko, ЦБ РФ
-- Технический анализ от TradingView Scanner API
+- Котировки в реальном времени из Yahoo Finance (+ Stooq fallback при rate-limit), MOEX ISS, CoinGecko, ЦБ РФ
+- Фундаментальные данные через Yahoo `quoteSummary` (P/E, EPS, dividends, market cap, beta, 52w high/low)
+- Технический анализ от TradingView Scanner API — region-aware (russia/crypto/forex/global) с fallback на global
 - Новости из Investing.com и Bloomberg RSS
-- Сентимент-анализ из X.com (stub)
+- **Реальный AI-анализ через OpenAI GPT** — GPT получает весь market context и возвращает structured JSON-инсайт
+- **Сентимент по новостям через OpenAI** (fallback — эвристика по ключевым словам; X.com stub оставлен как опция)
 - Генерация PNG-графиков цен и объёмов через QuickChart.io
-- Полный аналитический отчёт с Pivot Points, SMA, торговыми сценариями
+- Полный аналитический отчёт с Pivot Points, SMA, **динамическими уровнями от ATR**, GPT-сценариями
 - Опциональная оплата через ЮKassa
 
 ---
@@ -47,20 +49,24 @@ root/
           cache/
             market-cache.ts       — TTL-кэш (60с котировки, 5м история, 15м новости)
           market-data/
-            provider.interface.ts — MarketQuote, HistoricalBar, TechnicalSummary
-            yahoo-finance.provider.ts
+            provider.interface.ts — MarketQuote, HistoricalBar, TechnicalSummary, Fundamentals
+            yahoo-finance.provider.ts — retry + Stooq fallback + getFundamentals
             moex.provider.ts
             coingecko.provider.ts
             cbr.provider.ts
-            tradingview.provider.ts
+            tradingview.provider.ts — region-aware (russia/crypto/forex/global)
             index.ts              — фабрика провайдеров
           news/
             news.interface.ts     — NewsItem
             rss-news.provider.ts
             investing-rss.provider.ts
             bloomberg-rss.provider.ts
+          ai/
+            openai-client.ts      — общий OpenAI client + проверка isOpenAIConfigured()
+            openai-analyzer.ts    — OpenAIAnalyzer: structured AI-инсайт по market context
           sentiment/
             x-sentiment.provider.ts
+            openai-news-sentiment.provider.ts — GPT-оценка тональности новостных заголовков
           chart/
             chart-generator.ts    — QuickChart.io (price + volume charts)
           competitor/
@@ -80,17 +86,20 @@ root/
 
 #### `ai-analysis.ts`
 Генерирует полный аналитический отчёт (`AnalysisResult`):
-- `text` — HTML-форматированный текст с 8 разделами
+- `text` — HTML-форматированный текст с разделами
 - `charts` — массив PNG-буферов (график цены + график объёмов)
+
+Использует `OpenAIAnalyzer` для основного тезиса, сценариев, рисков, рекомендации и уровней, если задан `OPENAI_API_KEY`. При отсутствии ключа или ошибке GPT — работает детерминированный шаблон.
 
 Разделы отчёта:
 1. Текущая котировка + Pivot Points
 2. Техническая сводка TradingView
-3. Сентимент X.com
-4. Исторический анализ (SMA, волатильность)
-5. Торговые сценарии с уровнями
-6. Риски
-7. Торговая идея (вход, стоп, тейк)
+3. Сентимент (OpenAI по новостям → fallback X.com)
+3.5. Фундаментальные данные (P/E, EPS, dividends, market cap, beta, 52w)
+4. Исторический анализ (SMA 5/10/20/50, волатильность, Sharpe, Sortino)
+5. Торговые сценарии (GPT-тезис + 3 сценария + драйверы)
+6. Риски (GPT по инструменту)
+7. Торговая идея (вход, стоп, тейк) — уровни рассчитываются через `computeTradingLevels()` от ATR(14), а не фиксированными процентами
 8. Последние новости
 
 #### `integrations/market-data.service.ts`
@@ -98,8 +107,9 @@ root/
 - котировку (провайдер по маппингу)
 - историческую линейку за месяц
 - новости (RSS из 3 источников, дедупликация)
-- техническую сводку TradingView
-- сентимент X.com
+- техническую сводку TradingView (с выбором региона)
+- фундаментальные показатели (`provider.getFundamentals?.()` — опциональный метод провайдера)
+- сентимент: сначала OpenAI по новостям (если есть ключ и новости), иначе fallback через X.com stub
 
 #### `integrations/instrument-mapper.ts`
 Маппинг 12 инструментов на провайдеры:
@@ -145,8 +155,9 @@ cp .env.example .env
 - `ADMIN_CHAT_ID` — Telegram chat ID администратора ([@userinfobot](https://t.me/userinfobot))
 
 Опционально:
-- `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты
-- `OPENAI_API_KEY` — для будущей AI-интеграции
+- `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты. Без них бот работает в бесплатном режиме и выдаёт анализ напрямую
+- `OPENAI_API_KEY` — включает реальный GPT-анализ (тезис/сценарии/риски/уровни) и сентимент по новостям. Без него работает детерминированный шаблон + RU/EN-эвристика
+- `OPENAI_MODEL` — модель OpenAI (по умолчанию `gpt-4o-mini`)
 - `PORT` — порт HTTP-сервера
 
 ### Хранение секретов
@@ -178,6 +189,13 @@ npm run typecheck
 npm run build
 ```
 
+### Smoke-test pipeline
+Для быстрой ручной проверки всего pipeline (все 6 пунктов исходного аудита) есть `scripts/smoke-test.ts`:
+```bash
+npx tsx services/telegram-bot/scripts/smoke-test.ts
+```
+Он прогоняет `MarketDataService` + `AiAnalysisService` для AAPL (US), SBER (RU) и GOLD (commodity) и печатает: котировку, технический сигнал, сентимент, фундаменталку, торговую идею (entry/SL/TP), фрагмент отчёта. Полезно после изменений в провайдерах данных или AI-промпте.
+
 ---
 
 ## 4. Как добавить новый инструмент
@@ -202,7 +220,7 @@ npm run build
 Класс `MarketCache` в `cache/market-cache.ts`:
 - In-memory Map с TTL
 - Каждый провайдер проверяет кэш перед HTTP-запросом
-- TTL: котировки 60с, история 5м, новости 15м, сентимент 10м, тех. анализ 2м
+- TTL: котировки 60с, история 5м, фундаменталка 60м, новости 15м, сентимент 10м (с fingerprint новостной выборки), тех. анализ 2м, конкуренты 24ч
 
 ---
 
@@ -264,15 +282,17 @@ npm run build
 
 ## 11. Дальнейшее развитие
 
-Полный план с 9 этапами: [`docs/roadmap.md`](roadmap.md)
+Полный план (что уже сделано и что осталось): [`docs/roadmap.md`](roadmap.md)
 
-Краткий обзор приоритетов:
-1. **OpenAI интеграция** — генерация аналитики через GPT
-2. **X.com Sentiment API** — реальный сентимент вместо stub
-3. **Persistence** — PostgreSQL + Prisma
-4. **Подписки и алерты** — утренний/вечерний обзор, алерты по уровням
-5. **Улучшение графиков** — SMA, Bollinger, свечи
-6. **Миграция yahoo-finance2** — `historical()` → `chart()`
-7. **Качество кода** — тесты, CI/CD, ESLint
-8. **Production deployment** — Docker, мониторинг
-9. **Коммерческий контур** — тарифы, реферальная программа, админ-панель
+Краткий обзор приоритетов на следующие спринты:
+1. **Реальный X/Twitter sentiment** — сейчас GPT работает только по RSS-новостям; добавить прямой фид из X API или Nitter
+2. **PostgreSQL + Prisma** — вынести orders/sessions/alerts/digest из JSON-файлов в БД, история анализа
+3. **Cost / observability для OpenAI** — журнал вызовов GPT, prompt/completion tokens, USD-лимит
+4. **Улучшение графиков** — SMA-линии, Bollinger, candlestick, sparkline
+5. **Скринер инструментов** — поиск по P/E, объёму, сектору, dividend yield
+6. **Миграция yahoo-finance2** — `historical()` → `chart()` API, подавить deprecation warnings
+7. **Качество кода** — unit/integration тесты, CI/CD, ESLint, pre-commit
+8. **Production deployment** — Dockerfile, docker-compose, monitoring (Sentry/Prometheus)
+9. **Коммерческий контур** — тарифы Free/Pro/Premium, реферальная программа, правовые документы
+
+Пункты раньше входившие в roadmap (`OpenAI интеграция`, сентимент по новостям, region-aware TradingView, retry/fallback Yahoo, фундаменталка, динамические уровни от ATR) уже **реализованы** в этой ветке — см. `project-status.md`.

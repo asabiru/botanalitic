@@ -545,16 +545,24 @@ bot.action(/^demo:(.+)$/, async (ctx: any) => {
   await ctx.reply("⏳ Загружаю рыночные данные и формирую анализ...");
 
   const session = sessionStore.get(ctx.from.id);
-  const marketContext = await marketDataService.getMarketContext(instrument.id, session.ticker);
-
-  const result = await aiAnalysisService.generateAnalysis({
-    instrument,
-    ticker: session.ticker,
-    investorProfile: session.investorProfile,
-    marketContext,
-  });
-
-  await sendAnalysisResult(ctx, result);
+  try {
+    const marketContext = await marketDataService.getMarketContext(instrument.id, session.ticker);
+    const result = await aiAnalysisService.generateAnalysis({
+      instrument,
+      ticker: session.ticker,
+      investorProfile: session.investorProfile,
+      marketContext,
+    });
+    await sendAnalysisResult(ctx, result);
+  } catch (err) {
+    console.error(
+      `[demo] analysis failed for ${instrument.id}${session.ticker ? `/${session.ticker}` : ""}:`,
+      err,
+    );
+    await ctx.reply(
+      "⚠️ Не удалось сформировать анализ — внешний источник данных не ответил. Попробуйте ещё раз через минуту.",
+    );
+  }
 });
 
 bot.action(/^pay:(.+)$/, async (ctx: any) => {

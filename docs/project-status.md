@@ -25,9 +25,13 @@
 - **CoinGecko** — 25+ криптовалют (BTC, ETH, SOL, TON и др.)
 - **ЦБ РФ** — курсы USD/RUB, CNY/RUB
 - **TradingView Scanner** — техническая рекомендация (buy/sell/neutral)
+  - region-aware: MOEX/RUS → `russia/scan`, BINANCE/BYBIT → `crypto/scan`, FX → `forex/scan`, остальное → `global/scan`
+  - fallback на `global/scan`, если регион не вернул данных
 - **Investing.com RSS** — новости по категориям (forex, commodities, stocks)
 - **Bloomberg RSS** — мировые рыночные новости
-- **X.com** — сентимент-анализ (stub, требует API key)
+- **OpenAI GPT** — реальный AI-анализ + сентимент по новостным заголовкам (когда задан `OPENAI_API_KEY`)
+- **X.com sentiment** — stub, оставлен как fallback на случай отсутствия OpenAI/новостей
+- **Stooq.com** — fallback-провайдер котировок при rate-limit (HTTP 429) от Yahoo Finance
 - **Агент конкурентов** — анализ 7 конкурентов, матрица фич, идеи из RSS-трендов
 - **Агент аналитики акций** — 10 категорий, 20 seed-рекомендаций, CRUD через REST API
 
@@ -44,14 +48,15 @@
 - `/admin` — панель администратора (отчёт по конкурентам, предложения, запуск анализа, отчёт по категориям). Доступ ограничен `ADMIN_CHAT_ID`
 
 ### Аналитический отчёт
-Полный отчёт из 8 разделов:
+Полный отчёт (в заголовке явно указано, использован ли GPT или детерминированный шаблон):
 1. Текущая котировка с Pivot Points (R2, R1, S1, S2)
 2. Техническая сводка TradingView (рекомендация + индекс)
-3. Сентимент-анализ X.com
-4. Исторический анализ (SMA 5/20, волатильность, тренд, объёмы)
-5. Торговые сценарии (позитивный, нейтральный, негативный с уровнями)
-6. Риски
-7. Торговая идея (вход, стоп-лосс, тейк-профит, горизонт)
+3. Сентимент-анализ (OpenAI по новостным заголовкам, fallback — эвристика)
+3.5. Фундаментальные данные: P/E (TTM/forward), EPS, дивидендная доходность, дивиденд на акцию, beta, 52w high/low, market cap
+4. Исторический анализ (SMA 5/10/20/50, волатильность, тренд, объёмы, Sharpe, Sortino)
+5. Торговые сценарии (GPT-тезис + 3 сценария + ключевые драйверы; fallback — уровни по Pivot Points)
+6. Риски (GPT индивидуально по инструменту; fallback — базовый список)
+7. Торговая идея с динамическими уровнями от ATR(14): SL=1.5·ATR, TP1=2·ATR, TP2=3.5·ATR — больше НЕ фиксированные ±3/5%
 8. Последние новости с ссылками
 
 ### Графики
@@ -126,31 +131,56 @@
 - Мульти-таймфрейм SMA (5/10/20/50) с краткосрочным/среднесрочным/долгосрочным трендами
 - Данные хранятся в JSON-файлах (`tmp/competitor-suggestions.json`, `tmp/stock-categories.json`, `tmp/price-alerts.json`, `tmp/digest-subscribers.json`)
 
+### Добавлено в этом PR (real-AI-and-data-fixes)
+- **Real OpenAI аналитика** — `OpenAIAnalyzer` отправляет в GPT весь market context (котировка + SMA + ATR + история + новости + фундаменталка) и получает structured JSON-инсайт (тезис, сценарии, драйверы, риски, уровни, горизонт, confidence). Детерминированный шаблон остаётся как fallback, когда `OPENAI_API_KEY` не задан или GPT недоступен.
+- **Сентимент на реальных новостях** — `OpenAINewsSentimentProvider` оценивает тональность свежих заголовков через GPT и возвращает score/label. Гетеристический кейворд-анализ — fallback. X.com stub оставлен как опциональный путь, когда появится реальный X API.
+- **TradingView для MOEX работает** — сканер роутится на `russia/scan` для российских тикеров (с преобразованием `MOEX:SBER` → `RUS:SBER`, потому что russia/scan индексирует именно этот префикс), `crypto/scan` для Binance/Bybit и т.д., с fallback на `global/scan`. Smoke-test (`scripts/smoke-test.ts`) подтверждает: AAPL → NASDAQ:AAPL → buy, SBER → RUS:SBER → neutral, GOLD → GC=F → sell.
+- **Yahoo Finance retry** — экспоненциальный backoff на 429/5xx (4 попытки, 0.5–8 сек) + Stooq.com как провайдер последнего шанса.
+- **Фундаментали** — `getFundamentals(symbol)` через `quoteSummary` Yahoo (модули `summaryDetail`, `defaultKeyStatistics`, `price`); рендер раздела 3.5 в отчёте.
+- **Динамические торговые уровни** — entry/SL/TP рассчитываются от ATR(14) и волатильности — больше нет фиксированных ±2%/+3%/+5% для всех инструментов.
+
 ### Не реализовано / осталось сделать
 
-### Приоритет 1 — OpenAI интеграция
-- Подключить OpenAI для генерации текстовой аналитики
-- Промпт-шаблоны по типам активов
-- Structured output
+### Приоритет 1 — X.com / Twitter sentiment
+- Реальный сентимент напрямую из X.com (сейчас GPT анализирует только новостные RSS-фиды)
+- Требует X API key (Essential / Basic) или альтернативы: Nitter mirror, scrapers
+- Агрегация по выборке (top tweets/replies/quotes) → score, сравнение с новостным сентиментом
 
-### Приоритет 2 — X.com API
-- Реальный сентимент (сейчас stub)
-- Требует Twitter/X API key
+### Приоритет 2 — Persistence (PostgreSQL + Prisma)
+- Заменить in-memory + JSON-файлы на БД для orders, sessions, alerts, digest subscribers, analysis_history
+- Миграции, repositories
+- История анализов пользователя (`/history`)
 
-### Приоритет 3 — Persistence
-- PostgreSQL + Prisma
-- Сохранение заказов, пользователей
+### Приоритет 3 — Cost / observability для OpenAI
+- Журнал GPT-вызовов (instrument, model, prompt_tokens, completion_tokens, latency)
+- Лимит USD в день / на пользователя
+- Метрики: % live vs fallback, доля ошибок GPT
 
 ### Приоритет 4 — Скринер инструментов
-- Поиск инструментов по фильтрам (P/E, объём, сектор)
+- Поиск по фильтрам (P/E, объём, сектор, dividend yield, beta)
 - Фильтрация акций по категориям и параметрам
 - TradingView screener-style API
 
-### Приоритет 5 — Docker и deploy
-- Dockerfile
-- docker-compose
-- CI/CD pipeline
-- Мониторинг
+### Приоритет 5 — Улучшение визуализации
+- SMA-линии (5/10/20/50) поверх графика цены
+- Bollinger Bands
+- Candlestick (свечной) график как альтернатива линейному
+- Sparkline в карточке котировки
+
+### Приоритет 6 — Docker и deploy
+- Dockerfile + docker-compose (бот + Postgres)
+- CI/CD pipeline (typecheck, build, lint, test) — `.github/workflows`
+- Мониторинг (Sentry / Prometheus + Grafana)
+- Structured JSON-логи
+
+### Приоритет 7 — Миграция yahoo-finance2 API
+- `historical()` → `chart()` API (сейчас deprecation warning подавлен через `suppressNotices`)
+- Покрытие всех Yahoo-инструментов
+
+### Приоритет 8 — Тесты
+- Unit-тесты для провайдеров (vitest)
+- Integration-тесты для `MarketDataService`, `OpenAIAnalyzer`, `OpenAINewsSentimentProvider` (mock GPT)
+- E2E-тест Telegram-флоу через bot-tester
 
 ---
 
@@ -161,7 +191,8 @@
 - **Telegram:** Telegraf
 - **HTTP:** Express
 - **Валидация:** Zod
-- **Данные:** Yahoo Finance, MOEX ISS, CoinGecko, ЦБ РФ, TradingView, RSS
+- **Данные:** Yahoo Finance (+ Stooq fallback), MOEX ISS, CoinGecko, ЦБ РФ, TradingView (региональные сканеры), RSS
+- **AI:** OpenAI GPT (по умолчанию `gpt-4o-mini`) для аналитики и сентимента
 - **Графики:** QuickChart.io (Chart.js)
 - **Оплата:** ЮKassa API (опционально)
 - **Хранение данных агентов:** JSON-файлы (tmp/)

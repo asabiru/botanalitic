@@ -1,6 +1,9 @@
 import { InstrumentCategory } from "./catalog.js";
 import type { MarketContext } from "./integrations/market-data.service.js";
+import type { Fundamentals, HistoricalBar } from "./integrations/market-data/provider.interface.js";
 import { generatePriceChart, generateVolumeChart } from "./integrations/chart/chart-generator.js";
+import { OpenAIAnalyzer, type AiInsight } from "./integrations/ai/openai-analyzer.js";
+import { isOpenAIConfigured } from "./integrations/ai/openai-client.js";
 
 type AnalysisRequest = {
   instrument: InstrumentCategory;
@@ -15,11 +18,33 @@ export interface AnalysisResult {
 }
 
 export class AiAnalysisService {
+  private openAi = new OpenAIAnalyzer();
+
   async generateAnalysis(request: AnalysisRequest): Promise<AnalysisResult> {
+    const ctx = request.marketContext;
+    const fundamentalsSummary = ctx?.fundamentals
+      ? this.formatFundamentalsForPrompt(ctx.fundamentals)
+      : undefined;
+
+    const insight = isOpenAIConfigured()
+      ? await this.openAi.analyze({
+          instrument: request.instrument,
+          ticker: request.ticker,
+          investorProfile: request.investorProfile,
+          marketContext: request.marketContext,
+          fundamentalsSummary,
+        })
+      : null;
     const tickerLine = request.ticker ? `Тикер: ${request.ticker}` : "";
     const profileLine = request.investorProfile
       ? `Профиль инвестора: ${request.investorProfile}`
       : "";
+
+    const aiHeader = insight
+      ? "🤖 AI-анализ: GPT (live)"
+      : isOpenAIConfigured()
+        ? "🤖 AI-анализ: GPT недоступен — используется детерминированный шаблон"
+        : "🤖 AI-анализ: OPENAI_API_KEY не задан — используется детерминированный шаблон";
 
     const lines: string[] = [
       `📊 <b>AI Finance — полный аналитический отчёт</b>`,
@@ -27,12 +52,11 @@ export class AiAnalysisService {
       "",
       `Источники данных: Yahoo Finance, MOEX ISS, CoinGecko, ЦБ РФ, TradingView, Investing.com, Bloomberg, X.com`,
       `Дата отчёта: ${new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })} МСК`,
+      aiHeader,
     ];
 
     if (tickerLine) lines.push(tickerLine);
     if (profileLine) lines.push(profileLine);
-
-    const ctx = request.marketContext;
 
     // === SECTION 1: Current Quote ===
     if (ctx?.quote) {
@@ -120,16 +144,60 @@ export class AiAnalysisService {
         bearish: "📉",
         neutral: "➡️",
       };
+      const source = isOpenAIConfigured() && ctx.news.length > 0
+        ? "OpenAI / новостной поток"
+        : "эвристика по ключевым словам";
       lines.push(
         "",
         `━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        `<b>🐦 3. СЕНТИМЕНТ-АНАЛИЗ (X.com)</b>`,
+        `<b>🐦 3. СЕНТИМЕНТ-АНАЛИЗ</b>`,
         `━━━━━━━━━━━━━━━━━━━━━━━━━`,
         "",
         `${sentimentEmoji[ctx.sentiment.label] ?? ""} Тональность: <b>${sentimentLabels[ctx.sentiment.label] ?? ctx.sentiment.label}</b>`,
         `Оценка: ${ctx.sentiment.score.toFixed(2)} (шкала -1..+1)`,
         `Размер выборки: ${ctx.sentiment.sampleSize} публикаций`,
+        `Источник: ${source}`,
       );
+    }
+
+    // === SECTION 3.5: Fundamentals ===
+    if (ctx?.fundamentals) {
+      const f = ctx.fundamentals;
+      const fundLines: string[] = [];
+      if (f.marketCap !== null) {
+        fundLines.push(`Капитализация: ${this.formatCurrencyLarge(f.marketCap, f.currency)}`);
+      }
+      if (f.peRatio !== null) {
+        fundLines.push(`P/E (TTM): ${f.peRatio.toFixed(2)}`);
+      }
+      if (f.forwardPe !== null) {
+        fundLines.push(`Forward P/E: ${f.forwardPe.toFixed(2)}`);
+      }
+      if (f.eps !== null) {
+        fundLines.push(`EPS (TTM): ${f.eps.toFixed(2)}`);
+      }
+      if (f.dividendYield !== null) {
+        fundLines.push(`Дивидендная доходность: ${(f.dividendYield * 100).toFixed(2)}%`);
+      }
+      if (f.dividendRate !== null) {
+        fundLines.push(`Дивиденд на акцию: ${f.dividendRate.toFixed(2)}${f.currency ? " " + f.currency : ""}`);
+      }
+      if (f.beta !== null) {
+        fundLines.push(`Beta: ${f.beta.toFixed(2)}`);
+      }
+      if (f.high52w !== null && f.low52w !== null) {
+        fundLines.push(`Диапазон 52 нед: ${f.low52w.toFixed(2)} – ${f.high52w.toFixed(2)}`);
+      }
+      if (fundLines.length > 0) {
+        lines.push(
+          "",
+          `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+          `<b>📚 3.5. ФУНДАМЕНТАЛЬНЫЕ ДАННЫЕ</b>`,
+          `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+          "",
+          ...fundLines,
+        );
+      }
     }
 
     // === SECTION 4: Historical Analysis ===
@@ -198,7 +266,19 @@ export class AiAnalysisService {
       "",
     );
 
-    if (ctx?.quote) {
+    if (insight) {
+      lines.push(
+        `<b>🤖 AI-тезис:</b> ${this.escapeHtml(insight.thesis)}`,
+        "",
+        `<b>Позитивный сценарий:</b> ${this.escapeHtml(insight.bullishScenario)}`,
+        `<b>Нейтральный сценарий:</b> ${this.escapeHtml(insight.neutralScenario)}`,
+        `<b>Негативный сценарий:</b> ${this.escapeHtml(insight.bearishScenario)}`,
+      );
+      if (insight.keyDrivers.length > 0) {
+        lines.push("", `<b>Ключевые драйверы:</b>`);
+        for (const d of insight.keyDrivers) lines.push(`  • ${this.escapeHtml(d)}`);
+      }
+    } else if (ctx?.quote) {
       const q = ctx.quote;
       const range = q.high - q.low;
       const pivotPoint = (q.high + q.low + q.price) / 3;
@@ -235,12 +315,18 @@ export class AiAnalysisService {
       `<b>⚡ 6. РИСКИ</b>`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━`,
       "",
-      "• Высокая волатильность на фоне макростатистики",
-      "• Внезапные геополитические события",
-      "• Изменение ожиданий по процентным ставкам (ФРС, ЦБ РФ)",
-      "• Ликвидность: снижение объёмов = ложные пробои",
-      "• Корреляция с другими классами активов",
     );
+    if (insight && insight.risks.length > 0) {
+      for (const r of insight.risks) lines.push(`• ${this.escapeHtml(r)}`);
+    } else {
+      lines.push(
+        "• Высокая волатильность на фоне макростатистики",
+        "• Внезапные геополитические события",
+        "• Изменение ожиданий по процентным ставкам (ФРС, ЦБ РФ)",
+        "• Ликвидность: снижение объёмов = ложные пробои",
+        "• Корреляция с другими классами активов",
+      );
+    }
 
     // === SECTION 7: Trading Idea ===
     lines.push(
@@ -249,19 +335,34 @@ export class AiAnalysisService {
       `<b>💡 7. ТОРГОВАЯ ИДЕЯ</b>`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━`,
       "",
-      request.instrument.promptHint,
     );
+
+    if (insight?.recommendation) {
+      lines.push(this.escapeHtml(insight.recommendation));
+    } else {
+      lines.push(request.instrument.promptHint);
+    }
 
     if (ctx?.quote) {
       const q = ctx.quote;
+      const levels = this.computeTradingLevels(q.price, q.high, q.low, ctx.historicalBars, insight);
       lines.push(
         "",
-        `Точка входа: ${q.price.toFixed(2)} (по текущей цене)`,
-        `Стоп-лосс: ${(q.price * 0.98).toFixed(2)} (-2%)`,
-        `Тейк-профит 1: ${(q.price * 1.03).toFixed(2)} (+3%)`,
-        `Тейк-профит 2: ${(q.price * 1.05).toFixed(2)} (+5%)`,
-        `Горизонт: 1-2 недели`,
+        `Точка входа: ${this.formatLevel(levels.entry)}${levels.entrySource ? ` (${levels.entrySource})` : ""}`,
+        `Стоп-лосс: ${this.formatLevel(levels.stop)} (${levels.stopPct})`,
+        `Тейк-профит 1: ${this.formatLevel(levels.tp1)} (${levels.tp1Pct})`,
+        `Тейк-профит 2: ${this.formatLevel(levels.tp2)} (${levels.tp2Pct})`,
+        `Горизонт: ${insight?.horizon ?? levels.horizon}`,
+        levels.notes ? `Расчёт: ${levels.notes}` : "",
       );
+      if (insight?.confidence) {
+        const confLabel: Record<string, string> = {
+          high: "высокая",
+          medium: "средняя",
+          low: "низкая",
+        };
+        lines.push(`Уверенность AI: ${confLabel[insight.confidence] ?? insight.confidence}`);
+      }
     }
 
     // === SECTION 8: News ===
@@ -398,5 +499,130 @@ export class AiAnalysisService {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  private formatFundamentalsForPrompt(f: Fundamentals): string {
+    const parts: string[] = [];
+    if (f.shortName || f.longName) parts.push(`name=${f.longName ?? f.shortName}`);
+    if (f.marketCap !== null) parts.push(`marketCap=${f.marketCap}${f.currency ?? ""}`);
+    if (f.peRatio !== null) parts.push(`P/E=${f.peRatio}`);
+    if (f.forwardPe !== null) parts.push(`forwardP/E=${f.forwardPe}`);
+    if (f.eps !== null) parts.push(`EPS=${f.eps}`);
+    if (f.dividendYield !== null) parts.push(`divYield=${(f.dividendYield * 100).toFixed(2)}%`);
+    if (f.dividendRate !== null) parts.push(`dividend=${f.dividendRate}`);
+    if (f.beta !== null) parts.push(`beta=${f.beta}`);
+    if (f.high52w !== null && f.low52w !== null) {
+      parts.push(`52w=${f.low52w}–${f.high52w}`);
+    }
+    return parts.join("; ");
+  }
+
+  private formatCurrencyLarge(value: number, currency: string | null): string {
+    const c = currency ? ` ${currency}` : "";
+    if (Math.abs(value) >= 1e12) return `${(value / 1e12).toFixed(2)}T${c}`;
+    if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}B${c}`;
+    if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M${c}`;
+    return `${value.toFixed(2)}${c}`;
+  }
+
+  private formatLevel(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) return "—";
+    return value.toFixed(2);
+  }
+
+  /**
+   * Computes dynamic entry/stop/take-profit levels using ATR(14) and recent
+   * support/resistance from historical bars. Falls back to a volatility-aware
+   * percent of price when ATR is not computable. AI-provided levels are
+   * preferred when available and sane (within reasonable bounds).
+   */
+  private computeTradingLevels(
+    price: number,
+    dayHigh: number,
+    dayLow: number,
+    bars: HistoricalBar[] | undefined,
+    insight: AiInsight | null,
+  ): {
+    entry: number | null;
+    stop: number | null;
+    tp1: number | null;
+    tp2: number | null;
+    entrySource: string;
+    stopPct: string;
+    tp1Pct: string;
+    tp2Pct: string;
+    horizon: string;
+    notes: string;
+  } {
+    const sorted = bars ? [...bars].sort((a, b) => a.date.getTime() - b.date.getTime()) : [];
+    const atr14 = this.atr(sorted.slice(-14));
+    const atr = atr14 > 0 ? atr14 : Math.max(dayHigh - dayLow, price * 0.01);
+    // Multipliers: SL = 1.5*ATR, TP1 = 2*ATR, TP2 = 3.5*ATR — standard volatility-based RR.
+    let stop = price - 1.5 * atr;
+    let tp1 = price + 2 * atr;
+    let tp2 = price + 3.5 * atr;
+    let notes = `ATR(14)=${atr.toFixed(2)} \u2192 SL=1.5\u00b7ATR, TP1=2\u00b7ATR, TP2=3.5\u00b7ATR`;
+
+    let entry: number | null = price;
+    let entrySource = "по текущей цене";
+
+    if (insight) {
+      if (insight.entry !== null && this.isReasonable(price, insight.entry, 0.2)) {
+        entry = insight.entry;
+        entrySource = "AI-уровень";
+      }
+      if (insight.stopLoss !== null && this.isReasonable(price, insight.stopLoss, 0.3)) {
+        stop = insight.stopLoss;
+        notes = "уровни от AI-аналитика";
+      }
+      if (insight.takeProfit1 !== null && this.isReasonable(price, insight.takeProfit1, 0.5)) {
+        tp1 = insight.takeProfit1;
+      }
+      if (insight.takeProfit2 !== null && this.isReasonable(price, insight.takeProfit2, 1)) {
+        tp2 = insight.takeProfit2;
+      }
+    }
+
+    const stopPct = `${(((stop - price) / price) * 100).toFixed(2)}%`;
+    const tp1Pct = `${(tp1 - price) / price >= 0 ? "+" : ""}${(((tp1 - price) / price) * 100).toFixed(2)}%`;
+    const tp2Pct = `${(tp2 - price) / price >= 0 ? "+" : ""}${(((tp2 - price) / price) * 100).toFixed(2)}%`;
+
+    // Horizon depends on volatility: very volatile assets get a shorter horizon.
+    const volPct = (atr / price) * 100;
+    const horizon = volPct > 4 ? "1–3 дня (intraday/swing)" : volPct > 2 ? "1–2 недели" : "2–4 недели";
+
+    return {
+      entry,
+      stop,
+      tp1,
+      tp2,
+      entrySource,
+      stopPct,
+      tp1Pct,
+      tp2Pct,
+      horizon,
+      notes,
+    };
+  }
+
+  private atr(bars: HistoricalBar[]): number {
+    if (bars.length < 2) return 0;
+    let sum = 0;
+    for (let i = 1; i < bars.length; i++) {
+      const prev = bars[i - 1];
+      const cur = bars[i];
+      const tr = Math.max(
+        cur.high - cur.low,
+        Math.abs(cur.high - prev.close),
+        Math.abs(cur.low - prev.close),
+      );
+      sum += tr;
+    }
+    return sum / (bars.length - 1);
+  }
+
+  private isReasonable(price: number, level: number, maxFraction: number): boolean {
+    if (!Number.isFinite(level) || level <= 0 || price <= 0) return false;
+    return Math.abs(level - price) / price <= maxFraction;
   }
 }
