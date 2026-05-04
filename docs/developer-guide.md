@@ -155,8 +155,9 @@ cp .env.example .env
 - `ADMIN_CHAT_ID` — Telegram chat ID администратора ([@userinfobot](https://t.me/userinfobot))
 
 Опционально:
-- `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты
-- `OPENAI_API_KEY` — для будущей AI-интеграции
+- `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты. Без них бот работает в бесплатном режиме и выдаёт анализ напрямую
+- `OPENAI_API_KEY` — включает реальный GPT-анализ (тезис/сценарии/риски/уровни) и сентимент по новостям. Без него работает детерминированный шаблон + RU/EN-эвристика
+- `OPENAI_MODEL` — модель OpenAI (по умолчанию `gpt-4o-mini`)
 - `PORT` — порт HTTP-сервера
 
 ### Хранение секретов
@@ -188,6 +189,13 @@ npm run typecheck
 npm run build
 ```
 
+### Smoke-test pipeline
+Для быстрой ручной проверки всего pipeline (все 6 пунктов исходного аудита) есть `scripts/smoke-test.ts`:
+```bash
+npx tsx services/telegram-bot/scripts/smoke-test.ts
+```
+Он прогоняет `MarketDataService` + `AiAnalysisService` для AAPL (US), SBER (RU) и GOLD (commodity) и печатает: котировку, технический сигнал, сентимент, фундаменталку, торговую идею (entry/SL/TP), фрагмент отчёта. Полезно после изменений в провайдерах данных или AI-промпте.
+
 ---
 
 ## 4. Как добавить новый инструмент
@@ -212,7 +220,7 @@ npm run build
 Класс `MarketCache` в `cache/market-cache.ts`:
 - In-memory Map с TTL
 - Каждый провайдер проверяет кэш перед HTTP-запросом
-- TTL: котировки 60с, история 5м, новости 15м, сентимент 10м, тех. анализ 2м
+- TTL: котировки 60с, история 5м, фундаменталка 60м, новости 15м, сентимент 10м (с fingerprint новостной выборки), тех. анализ 2м, конкуренты 24ч
 
 ---
 
@@ -274,15 +282,17 @@ npm run build
 
 ## 11. Дальнейшее развитие
 
-Полный план с 9 этапами: [`docs/roadmap.md`](roadmap.md)
+Полный план (что уже сделано и что осталось): [`docs/roadmap.md`](roadmap.md)
 
-Краткий обзор приоритетов:
-1. **OpenAI интеграция** — генерация аналитики через GPT
-2. **X.com Sentiment API** — реальный сентимент вместо stub
-3. **Persistence** — PostgreSQL + Prisma
-4. **Подписки и алерты** — утренний/вечерний обзор, алерты по уровням
-5. **Улучшение графиков** — SMA, Bollinger, свечи
-6. **Миграция yahoo-finance2** — `historical()` → `chart()`
-7. **Качество кода** — тесты, CI/CD, ESLint
-8. **Production deployment** — Docker, мониторинг
-9. **Коммерческий контур** — тарифы, реферальная программа, админ-панель
+Краткий обзор приоритетов на следующие спринты:
+1. **Реальный X/Twitter sentiment** — сейчас GPT работает только по RSS-новостям; добавить прямой фид из X API или Nitter
+2. **PostgreSQL + Prisma** — вынести orders/sessions/alerts/digest из JSON-файлов в БД, история анализа
+3. **Cost / observability для OpenAI** — журнал вызовов GPT, prompt/completion tokens, USD-лимит
+4. **Улучшение графиков** — SMA-линии, Bollinger, candlestick, sparkline
+5. **Скринер инструментов** — поиск по P/E, объёму, сектору, dividend yield
+6. **Миграция yahoo-finance2** — `historical()` → `chart()` API, подавить deprecation warnings
+7. **Качество кода** — unit/integration тесты, CI/CD, ESLint, pre-commit
+8. **Production deployment** — Dockerfile, docker-compose, monitoring (Sentry/Prometheus)
+9. **Коммерческий контур** — тарифы Free/Pro/Premium, реферальная программа, правовые документы
+
+Пункты раньше входившие в roadmap (`OpenAI интеграция`, сентимент по новостям, region-aware TradingView, retry/fallback Yahoo, фундаменталка, динамические уровни от ATR) уже **реализованы** в этой ветке — см. `project-status.md`.
