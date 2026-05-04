@@ -165,7 +165,7 @@ export class AiAnalysisService {
   }
 }
 
-const HTML_TAGS = ["b", "i", "u", "code", "pre"] as const;
+const HTML_TAGS = ["b", "i", "u", "code", "pre", "a", "s"] as const;
 const MAX_CLOSING_RESERVE = HTML_TAGS.reduce((sum, t) => sum + t.length + 3, 0);
 
 function getOpenTags(text: string): string[] {

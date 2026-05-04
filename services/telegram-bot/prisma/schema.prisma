@@ -36,6 +36,9 @@ model Order {
   investorProfile String?
   paymentId       String?
   paymentUrl      String?
+  promoCode       String?
+  discountPercent Float?
+  originalAmountRub Float?
   status          OrderStatus @default(created)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt

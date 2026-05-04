@@ -339,10 +339,6 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
       amountRub: finalAmount
     });
 
-    if (appliedCode) {
-      promoStore.use(appliedCode);
-    }
-
     await orderStore.update(order.id, {
       paymentId: payment.paymentId,
       paymentUrl: payment.confirmationUrl,

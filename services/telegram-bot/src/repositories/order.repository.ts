@@ -11,6 +11,9 @@ export type CreateOrderInput = {
   paymentId?: string;
   paymentUrl?: string;
   status?: LegacyOrderStatus;
+  promoCode?: string;
+  discountPercent?: number;
+  originalAmountRub?: number;
 };
 
 function toOrderRecord(order: Order): OrderRecord {
@@ -24,6 +27,9 @@ function toOrderRecord(order: Order): OrderRecord {
     investorProfile: order.investorProfile ?? undefined,
     paymentId: order.paymentId ?? undefined,
     paymentUrl: order.paymentUrl ?? undefined,
+    promoCode: order.promoCode ?? undefined,
+    discountPercent: order.discountPercent ?? undefined,
+    originalAmountRub: order.originalAmountRub ?? undefined,
     status: order.status as LegacyOrderStatus,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
@@ -55,6 +61,9 @@ export class PrismaOrderRepository {
         investorProfile: input.investorProfile ?? null,
         paymentId: input.paymentId ?? null,
         paymentUrl: input.paymentUrl ?? null,
+        promoCode: input.promoCode ?? null,
+        discountPercent: input.discountPercent ?? null,
+        originalAmountRub: input.originalAmountRub ?? null,
         status: toLegacyStatus(input.status ?? "created"),
       },
     });

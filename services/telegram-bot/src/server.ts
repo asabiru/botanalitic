@@ -1,6 +1,6 @@
 import express from "express";
 import { resolve } from "node:path";
-import { bot, orderStore, aiAnalysisService, marketDataService } from "./app-context.js";
+import { bot, orderStore, aiAnalysisService, marketDataService, promoStore } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 import { config } from "./config.js";
 import { logger } from "./utils/logger.js";
@@ -126,6 +126,10 @@ export function createServer() {
         }
 
         await orderStore.update(order.id, { status: "paid", paymentId });
+
+        if (order.promoCode) {
+          promoStore.use(order.promoCode);
+        }
 
         const instrument = findInstrumentById(order.instrumentId);
 
