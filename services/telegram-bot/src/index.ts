@@ -21,9 +21,7 @@ function isAdmin(userId: number): boolean {
 
 function mainMenu() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("📚 Каталог аналитики", "catalog")],
-    [Markup.button.callback("📊 Котировки (live)", "quotes_menu")],
-    [Markup.button.callback("📂 Категории акций", "stock_categories")],
+    [Markup.button.callback("📊 Аналитика", "analytics_hub")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("🔍 Анализ конкурентов", "competitor_research")],
@@ -81,6 +79,32 @@ bot.start(async (ctx: any) => {
 bot.action("catalog", async (ctx: any) => {
   await ctx.answerCbQuery();
   await ctx.reply("Выберите инструмент для анализа:", catalogKeyboard());
+});
+
+// === Unified Analytics Hub ===
+bot.action("analytics_hub", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    [
+      "<b>📊 Аналитика</b>",
+      "",
+      "Выберите рынок для просмотра категорий и акций.",
+      "После выбора конкретной акции вы получите:",
+      "• live-котировку",
+      "• графики цен и объёмов",
+      "• полный аналитический отчёт",
+    ].join("\n"),
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("📈 Акции РФ", "cat_instrument:ru-stocks")],
+        [Markup.button.callback("🇺🇸 Акции США", "cat_instrument:us-stocks")],
+        [Markup.button.callback("₿ Криптовалюты", "cat_instrument:crypto")],
+        [Markup.button.callback("🛢 Сырьё и валюты", "catalog")],
+        [Markup.button.callback("◀️ Главное меню", "back_main")],
+      ]),
+    }
+  );
 });
 
 bot.action("buy_help", async (ctx: any) => {
@@ -189,18 +213,6 @@ bot.action("competitor_research", async (ctx: any) => {
 });
 
 // === Stock Categories (public) ===
-bot.action("stock_categories", async (ctx: any) => {
-  await ctx.answerCbQuery();
-  await ctx.reply(
-    "Выберите рынок для просмотра категорий:",
-    Markup.inlineKeyboard([
-      [Markup.button.callback("📈 Акции РФ", "cat_instrument:ru-stocks")],
-      [Markup.button.callback("🇺🇸 Акции США", "cat_instrument:us-stocks")],
-      [Markup.button.callback("₿ Криптовалюты", "cat_instrument:crypto")],
-      [Markup.button.callback("◀️ Назад", "back_main")],
-    ])
-  );
-});
 
 bot.action(/^cat_instrument:(.+)$/, async (ctx: any) => {
   await ctx.answerCbQuery();
@@ -214,7 +226,7 @@ bot.action(/^cat_instrument:(.+)$/, async (ctx: any) => {
 
   const text = stockAnalyticsAgent.formatInstrumentCategories(instrumentId);
   const buttons = categories.map((cat) => [Markup.button.callback(`${cat.icon} ${cat.name}`, `cat_view:${cat.id}`)]);
-  buttons.push([Markup.button.callback("◀️ Назад к рынкам", "stock_categories")]);
+  buttons.push([Markup.button.callback("◀️ Назад к рынкам", "analytics_hub")]);
 
   await ctx.reply(text, { parse_mode: "HTML", ...Markup.inlineKeyboard(buttons) });
 });
@@ -222,6 +234,14 @@ bot.action(/^cat_instrument:(.+)$/, async (ctx: any) => {
 bot.action(/^cat_view:(.+)$/, async (ctx: any) => {
   await ctx.answerCbQuery();
   const categoryId = ctx.match[1] as string;
+  const data = stockAnalyticsAgent.getCategoryWithStocks(categoryId);
+
+  if (!data) {
+    await ctx.reply("Категория не найдена.");
+    return;
+  }
+
+  const { category, stocks } = data;
   const card = stockAnalyticsAgent.formatCategoryCard(categoryId);
 
   if (!card) {
@@ -229,15 +249,57 @@ bot.action(/^cat_view:(.+)$/, async (ctx: any) => {
     return;
   }
 
-  const data = stockAnalyticsAgent.getCategoryWithStocks(categoryId);
-  const backInstrument = data?.category.instrumentId ?? "ru-stocks";
+  const instrumentId = category.instrumentId;
+  const stockButtons = stocks.map((s) => [
+    Markup.button.callback(`📊 ${s.ticker} — ${s.name}`, `stock_analyze:${instrumentId}:${s.ticker}`),
+  ]);
+  stockButtons.push([Markup.button.callback("◀️ Назад к категориям", `cat_instrument:${instrumentId}`)]);
 
   await ctx.reply(card, {
     parse_mode: "HTML",
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback("◀️ Назад к категориям", `cat_instrument:${backInstrument}`)],
-    ]),
+    ...Markup.inlineKeyboard(stockButtons),
   });
+});
+
+// === Stock Analysis from category ===
+bot.action(/^stock_analyze:(.+):(.+)$/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+  const instrumentId = ctx.match[1] as string;
+  const ticker = ctx.match[2] as string;
+
+  const instrument = findInstrumentById(instrumentId);
+  if (!instrument) {
+    await ctx.reply("Инструмент не найден.");
+    return;
+  }
+
+  sessionStore.patch(ctx.from.id, {
+    selectedInstrumentId: instrument.id,
+    ticker: ticker,
+    investorProfile: undefined,
+  });
+
+  await ctx.reply(`⏳ Загружаю данные по <b>${ticker}</b>...`, { parse_mode: "HTML" });
+
+  try {
+    const quote = await fetchLiveQuote(marketDataService, instrument.id, ticker);
+    if (quote) {
+      await ctx.reply(formatQuote(quote), { parse_mode: "HTML" });
+    }
+
+    const marketContext = await marketDataService.getMarketContext(instrument.id, ticker);
+    const result = await aiAnalysisService.generateAnalysis({
+      instrument,
+      ticker,
+      investorProfile: undefined,
+      marketContext,
+    });
+
+    await sendAnalysisResult(ctx, result);
+  } catch (err) {
+    console.error(`[StockAnalyze] Error for ${ticker}:`, err);
+    await ctx.reply(`Ошибка при анализе ${ticker}. Попробуйте позже.`);
+  }
 });
 
 bot.action("back_main", async (ctx: any) => {
@@ -368,6 +430,28 @@ bot.action("quotes_menu", async (ctx: any) => {
   );
 });
 
+bot.action("stock_categories", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("Перенаправляю в аналитику...");
+  await ctx.reply(
+    [
+      "<b>📊 Аналитика</b>",
+      "",
+      "Выберите рынок для просмотра категорий и акций.",
+    ].join("\n"),
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("📈 Акции РФ", "cat_instrument:ru-stocks")],
+        [Markup.button.callback("🇺🇸 Акции США", "cat_instrument:us-stocks")],
+        [Markup.button.callback("₿ Криптовалюты", "cat_instrument:crypto")],
+        [Markup.button.callback("🛢 Сырьё и валюты", "catalog")],
+        [Markup.button.callback("◀️ Главное меню", "back_main")],
+      ]),
+    }
+  );
+});
+
 bot.action(/^quote:(.+)$/, async (ctx: any) => {
   await ctx.answerCbQuery();
 
@@ -393,7 +477,7 @@ bot.action(/^quote:(.+)$/, async (ctx: any) => {
     ...Markup.inlineKeyboard([
       [Markup.button.callback("🔄 Обновить", `quote:${instrumentId}`)],
       [Markup.button.callback("📚 Подробный анализ", `instrument:${instrumentId}`)],
-      [Markup.button.callback("◀️ Назад к котировкам", "quotes_menu")]
+      [Markup.button.callback("◀️ Назад", "analytics_hub")]
     ])
   });
 });
