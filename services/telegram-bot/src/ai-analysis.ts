@@ -137,7 +137,9 @@ export class AiAnalysisService {
       const bars = ctx.historicalBars;
       const sorted = [...bars].sort((a, b) => a.date.getTime() - b.date.getTime());
       const last5 = sorted.slice(-5);
+      const last10 = sorted.slice(-10);
       const last20 = sorted.slice(-20);
+      const last50 = sorted.slice(-50);
 
       const avgVolume5 = last5.reduce((s, b) => s + b.volume, 0) / last5.length;
       const avgVolume20 = last20.length > 0 ? last20.reduce((s, b) => s + b.volume, 0) / last20.length : avgVolume5;
@@ -146,11 +148,16 @@ export class AiAnalysisService {
       const minLow = Math.min(...sorted.map((b) => b.low));
       const volatility = ((maxHigh - minLow) / minLow) * 100;
 
-      // SMA
       const sma5 = last5.reduce((s, b) => s + b.close, 0) / last5.length;
-      const sma20 = last20.length >= 20 ? last20.reduce((s, b) => s + b.close, 0) / last20.length : sma5;
+      const sma10 = last10.length >= 10 ? last10.reduce((s, b) => s + b.close, 0) / last10.length : sma5;
+      const sma20 = last20.length >= 20 ? last20.reduce((s, b) => s + b.close, 0) / last20.length : sma10;
+      const sma50 = last50.length >= 50 ? last50.reduce((s, b) => s + b.close, 0) / last50.length : sma20;
 
-      const trendSignal = sma5 > sma20 ? "восходящий" : sma5 < sma20 ? "нисходящий" : "боковой";
+      const shortTrend = sma5 > sma10 ? "восходящий" : sma5 < sma10 ? "нисходящий" : "боковой";
+      const midTrend = sma10 > sma20 ? "восходящий" : sma10 < sma20 ? "нисходящий" : "боковой";
+      const longTrend = sma20 > sma50 ? "восходящий" : sma20 < sma50 ? "нисходящий" : "боковой";
+
+      const { sharpe, sortino, maxDrawdown, annualReturn } = this.computeRiskMetrics(sorted);
 
       lines.push(
         "",
@@ -162,10 +169,18 @@ export class AiAnalysisService {
         `Диапазон цен: ${minLow.toFixed(2)} – ${maxHigh.toFixed(2)}`,
         `Волатильность: ${volatility.toFixed(1)}%`,
         "",
-        `<b>Скользящие средние:</b>`,
-        `  SMA(5): ${sma5.toFixed(2)}`,
-        `  SMA(20): ${sma20.toFixed(2)}`,
-        `  Тренд: ${trendSignal}`,
+        `<b>Мульти-таймфрейм (SMA):</b>`,
+        `  SMA(5): ${sma5.toFixed(2)}  |  SMA(10): ${sma10.toFixed(2)}`,
+        `  SMA(20): ${sma20.toFixed(2)}  |  SMA(50): ${sma50.toFixed(2)}`,
+        `  Краткосрочный тренд (5/10): ${shortTrend}`,
+        `  Среднесрочный тренд (10/20): ${midTrend}`,
+        `  Долгосрочный тренд (20/50): ${longTrend}`,
+        "",
+        `<b>Risk-adjusted метрики:</b>`,
+        `  Sharpe ratio: ${this.formatRatio(sharpe)}  ${this.gradeRatio(sharpe)}`,
+        `  Sortino ratio: ${this.formatRatio(sortino)}  ${this.gradeRatio(sortino)}`,
+        `  Max drawdown: ${maxDrawdown !== null ? `${maxDrawdown.toFixed(1)}%` : "—"}`,
+        `  Годовая доходность (оценка): ${annualReturn !== null ? `${annualReturn >= 0 ? "+" : ""}${annualReturn.toFixed(1)}%` : "—"}`,
         "",
         `<b>Объёмы:</b>`,
         `  Средний (5д): ${this.formatVolume(avgVolume5)}`,
@@ -303,6 +318,78 @@ export class AiAnalysisService {
     if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
     if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
     return String(v);
+  }
+
+  private computeRiskMetrics(bars: { close: number }[]): {
+    sharpe: number | null;
+    sortino: number | null;
+    maxDrawdown: number | null;
+    annualReturn: number | null;
+  } {
+    if (bars.length < 5) {
+      return { sharpe: null, sortino: null, maxDrawdown: null, annualReturn: null };
+    }
+
+    const returns: number[] = [];
+    for (let i = 1; i < bars.length; i++) {
+      const prev = bars[i - 1].close;
+      const curr = bars[i].close;
+      if (prev > 0) {
+        returns.push((curr - prev) / prev);
+      }
+    }
+    if (returns.length === 0) {
+      return { sharpe: null, sortino: null, maxDrawdown: null, annualReturn: null };
+    }
+
+    const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    const downside = returns.filter((r) => r < 0);
+    const downsideVar = downside.length > 0
+      ? downside.reduce((s, r) => s + r * r, 0) / downside.length
+      : 0;
+    const downsideDev = Math.sqrt(downsideVar);
+
+    const periodsPerYear = 252;
+    const riskFreeAnnual = 0.10;
+    const riskFreeDaily = riskFreeAnnual / periodsPerYear;
+
+    const annualMean = mean * periodsPerYear;
+    const annualStd = stdDev * Math.sqrt(periodsPerYear);
+    const annualDownside = downsideDev * Math.sqrt(periodsPerYear);
+
+    const sharpe = annualStd > 0 ? (annualMean - riskFreeAnnual) / annualStd : null;
+    const sortino = annualDownside > 0 ? (annualMean - riskFreeAnnual) / annualDownside : null;
+    void riskFreeDaily;
+
+    let peak = bars[0].close;
+    let maxDd = 0;
+    for (const bar of bars) {
+      if (bar.close > peak) peak = bar.close;
+      const dd = peak > 0 ? (peak - bar.close) / peak : 0;
+      if (dd > maxDd) maxDd = dd;
+    }
+
+    return {
+      sharpe,
+      sortino,
+      maxDrawdown: maxDd * 100,
+      annualReturn: annualMean * 100,
+    };
+  }
+
+  private formatRatio(value: number | null): string {
+    if (value === null || !isFinite(value)) return "—";
+    return value.toFixed(2);
+  }
+
+  private gradeRatio(value: number | null): string {
+    if (value === null || !isFinite(value)) return "";
+    if (value >= 2) return "(отлично)";
+    if (value >= 1) return "(хорошо)";
+    if (value >= 0) return "(приемлемо)";
+    return "(слабо)";
   }
 
   private escapeHtml(text: string): string {
