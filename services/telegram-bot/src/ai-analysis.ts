@@ -170,7 +170,7 @@ const MAX_CLOSING_RESERVE = HTML_TAGS.reduce((sum, t) => sum + t.length + 3, 0);
 
 function getOpenTags(text: string): string[] {
   const stack: string[] = [];
-  const combined = new RegExp(`<(/?)\\b(${HTML_TAGS.join("|")})\\b>`, "gi");
+  const combined = new RegExp(`<(/?)\\b(${HTML_TAGS.join("|")})\\b[^>]*>`, "gi");
   let m: RegExpExecArray | null;
   while ((m = combined.exec(text)) !== null) {
     const isClose = m[1] === "/";

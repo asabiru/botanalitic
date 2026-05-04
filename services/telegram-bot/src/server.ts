@@ -1,5 +1,6 @@
 import express from "express";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { bot, orderStore, aiAnalysisService, marketDataService, promoStore } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 import { config } from "./config.js";
@@ -224,7 +225,8 @@ export function createServer() {
 
   // --- Admin HTTP API ---
 
-  const adminDir = resolve(process.cwd(), "..", "..", "admin");
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const adminDir = process.env.ADMIN_DIR ?? resolve(__dirname, "..", "..", "..", "admin");
 
   app.use("/admin/dashboard", express.static(adminDir));
 

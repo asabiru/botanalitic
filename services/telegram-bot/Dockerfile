@@ -13,7 +13,8 @@ RUN npm ci
 # Copy source code
 COPY services/telegram-bot/ ./services/telegram-bot/
 
-# Build
+# Generate Prisma client and build
+RUN npx prisma generate --schema=services/telegram-bot/prisma/schema.prisma
 RUN npm run build --workspace telegram-bot
 
 # ---- Production stage ----
@@ -29,6 +30,10 @@ COPY services/telegram-bot/package.json ./services/telegram-bot/
 
 # Install production dependencies only
 RUN npm ci --omit=dev
+
+# Copy Prisma schema and generate client
+COPY services/telegram-bot/prisma ./services/telegram-bot/prisma
+RUN npx prisma generate --schema=services/telegram-bot/prisma/schema.prisma
 
 # Copy built output from builder
 COPY --from=builder /app/services/telegram-bot/dist ./services/telegram-bot/dist
