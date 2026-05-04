@@ -24,7 +24,6 @@ function mainMenu() {
     [Markup.button.callback("📊 Аналитика", "analytics_hub")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
-    [Markup.button.callback("🔍 Анализ конкурентов", "competitor_research")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
   ]);
 }
