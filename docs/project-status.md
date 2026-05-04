@@ -102,6 +102,17 @@
 - структурированное логирование webhook events
 - уведомление админа через `ADMIN_CHAT_ID` при ошибках
 
+### Real AI integration
+Реализовано:
+- OpenAI SDK подключен (`openai` npm package)
+- `src/ai/openai-client.ts` — фабрика OpenAI клиента из конфига
+- `src/ai/prompt-templates.ts` — шаблоны промптов для каждого класса активов
+- structured output: обзор рынка, ключевые уровни, сценарии (позитивный/нейтральный/негативный), риски, идея для клиента
+- fallback на demo-генератор если `OPENAI_API_KEY` не задан
+- контроль `max_tokens` (по умолчанию 2000, настраивается через `OPENAI_MAX_TOKENS`)
+- error handling: при ошибке OpenAI возвращается demo-ответ
+- disclaimer в каждом ответе
+
 ### Документация
 Подготовлено:
 - `README.md`
@@ -165,12 +176,13 @@
 - ✅ статусы доставки аналитики (delivered/failed + admin notify)
 
 ### Priority 3 — Real AI analysis
-Сделать:
-- OpenAI / LLM integration
-- prompt templates
-- structured output
-- нормализация ответа
-- контроль длины ответа
+Сделано:
+- ✅ OpenAI / LLM integration
+- ✅ prompt templates
+- ✅ structured output
+- ✅ нормализация ответа
+- ✅ контроль длины ответа
+Осталось:
 - cost tracking
 
 ### Priority 4 — Data integrations

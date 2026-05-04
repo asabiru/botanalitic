@@ -156,9 +156,11 @@ export function createServer() {
         // Retry only the analysis delivery with exponential backoff
         await withRetry(
           async () => {
-            await bot.telegram.sendMessage(order.telegramUserId, analysis, {
-              parse_mode: "HTML"
-            });
+            for (const chunk of analysis) {
+              await bot.telegram.sendMessage(order.telegramUserId, chunk, {
+                parse_mode: "HTML"
+              });
+            }
           },
           `telegram_send:${paymentId}`
         );

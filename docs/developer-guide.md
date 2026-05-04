@@ -42,6 +42,9 @@ root/
         config.ts
         catalog.ts
         ai-analysis.ts
+        ai/
+          openai-client.ts
+          prompt-templates.ts
         yookassa.ts
         session-store.ts
         order-store.ts
@@ -73,8 +76,13 @@ root/
 Каталог инструментов, цены, тексты категорий.
 
 #### `ai-analysis.ts`
-Сейчас это демо-генератор аналитики.  
-В будущем сюда нужно подключить реальный AI pipeline.
+Сервис генерации аналитики. Использует OpenAI API если задан `OPENAI_API_KEY`, иначе возвращает demo-ответ.
+
+#### `ai/openai-client.ts`
+Фабрика для создания OpenAI клиента из конфигурации.
+
+#### `ai/prompt-templates.ts`
+Шаблоны промптов для AI: системный промпт, построитель пользовательского запроса, disclaimer.
 
 #### `yookassa.ts`
 Интеграция создания платежа через ЮKassa API.
@@ -411,17 +419,46 @@ services/telegram-bot/src/catalog.ts
 
 ---
 
-## 10. Как подключить реальный OpenAI
+## 10. OpenAI интеграция (реализовано)
 
-Сейчас `ai-analysis.ts` возвращает демо-текст.
+OpenAI API подключен и работает в production-режиме.
 
-Чтобы подключить реальную модель:
-1. установить официальный SDK
-2. создать `OpenAiAnalysisService`
-3. вынести prompt templates
-4. подключить market data context
-5. валидировать и сокращать ответ
-6. логировать стоимость генерации
+### Архитектура
+
+```text
+src/
+  ai/
+    openai-client.ts    — фабрика OpenAI клиента
+    prompt-templates.ts — системный промпт + шаблон пользовательского запроса
+  ai-analysis.ts        — основной сервис анализа
+```
+
+### Как работает
+
+1. `openai-client.ts` создаёт OpenAI клиент из `config.OPENAI_API_KEY`
+2. Если ключ не задан или пустой — возвращает `null`, и сервис использует demo-генератор
+3. `prompt-templates.ts` содержит:
+   - `SYSTEM_PROMPT` — системный промпт для роли аналитика
+   - `buildUserPrompt()` — строит запрос на основе `InstrumentCategory`, тикера и профиля
+   - `DISCLAIMER` — обязательный disclaimer в конце каждого ответа
+4. `ai-analysis.ts` (`AiAnalysisService`):
+   - Принимает OpenAI клиент, модель и max_tokens через конструктор
+   - Если есть OpenAI клиент → вызывает Chat Completions API
+   - Если нет или ошибка → fallback на demo-генератор
+   - Ответ содержит 5 секций: обзор рынка, ключевые уровни, сценарии, риски, идея
+
+### Переменные окружения
+
+| Переменная | Обязательная | По умолчанию | Описание |
+|---|---|---|---|
+| `OPENAI_API_KEY` | Нет | — | API ключ OpenAI. Без него используется demo-генератор |
+| `OPENAI_MODEL` | Нет | `gpt-4o-mini` | Модель OpenAI для генерации |
+| `OPENAI_MAX_TOKENS` | Нет | `2000` | Максимум токенов в ответе |
+
+### Что осталось сделать
+- Подключить market data context (реальные котировки, новости) в промпт
+- Логирование стоимости генерации (cost tracking)
+- Кэширование ответов
 
 ---
 

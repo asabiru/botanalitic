@@ -161,13 +161,15 @@ bot.action(/^demo:(.+)$/, async (ctx: any) => {
   }
 
   const session = sessionStore.get(ctx.from.id);
-  const analysis = await aiAnalysisService.generateAnalysis({
+  const chunks = await aiAnalysisService.generateAnalysis({
     instrument,
     ticker: session.ticker,
     investorProfile: session.investorProfile
   });
 
-  await ctx.reply(analysis, { parse_mode: "HTML" });
+  for (const chunk of chunks) {
+    await ctx.reply(chunk, { parse_mode: "HTML" });
+  }
 });
 
 bot.action(/^pay:(.+)$/, async (ctx: any) => {
