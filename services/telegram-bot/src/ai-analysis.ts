@@ -45,13 +45,16 @@ export class AiAnalysisService {
       request.investorProfile
     );
 
+    const contextBlock = this.buildMarketContextBlock(request.marketContext);
+    const fullPrompt = contextBlock ? `${userPrompt}\n\n${contextBlock}` : userPrompt;
+
     const response = await this.openai!.chat.completions.create({
       model: this.model,
       max_completion_tokens: this.maxTokens,
       temperature: 0.7,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt }
+        { role: "user", content: fullPrompt }
       ]
     });
 
@@ -92,6 +95,9 @@ export class AiAnalysisService {
       );
       if (q.volume) {
         lines.push(`Объём: ${this.formatVolume(q.volume)}`);
+      }
+      if (q.marketCap) {
+        lines.push(`Капитализация: $${this.formatVolume(q.marketCap)}`);
       }
       if (ctx.weeklyChange !== null) {
         lines.push(`Изменение за неделю: ${ctx.weeklyChange >= 0 ? "+" : ""}${ctx.weeklyChange.toFixed(2)}%`);
@@ -134,6 +140,26 @@ export class AiAnalysisService {
       `${request.instrument.promptHint} Добавь понятные уровни входа, отмены сценария и горизонты.`,
     );
 
+    if (ctx?.sentiment) {
+      const s = ctx.sentiment;
+      const sentimentLabels: Record<string, string> = {
+        bullish: "🟢 Бычий",
+        bearish: "🔴 Медвежий",
+        neutral: "🟡 Нейтральный",
+      };
+      lines.push(
+        "",
+        `<b>💬 Настроение X.com</b>`,
+        `Сентимент: ${sentimentLabels[s.label] ?? s.label} (${s.score > 0 ? "+" : ""}${s.score.toFixed(1)})`,
+        `Проанализировано постов: ${s.sampleSize}`,
+      );
+      if (s.tweetSamples && s.tweetSamples.length > 0) {
+        for (const sample of s.tweetSamples.slice(0, 2)) {
+          lines.push(`• @${this.escapeHtml(sample.username)}: "${this.escapeHtml(sample.text.slice(0, 120))}..."`);
+        }
+      }
+    }
+
     if (ctx?.news && ctx.news.length > 0) {
       lines.push("", "<b>📰 Последние новости</b>");
       for (const n of ctx.news.slice(0, 3)) {
@@ -147,6 +173,47 @@ export class AiAnalysisService {
     );
 
     return lines.join("\n");
+  }
+
+  private buildMarketContextBlock(ctx?: MarketContext): string {
+    if (!ctx) return "";
+
+    const parts: string[] = [];
+
+    if (ctx.quote) {
+      const q = ctx.quote;
+      parts.push(
+        `Текущая котировка: ${q.price.toFixed(2)}, изменение: ${q.change >= 0 ? "+" : ""}${q.change.toFixed(2)} (${q.changePercent >= 0 ? "+" : ""}${q.changePercent.toFixed(2)}%)`,
+        `Диапазон дня: ${q.low.toFixed(2)} – ${q.high.toFixed(2)}, объём: ${this.formatVolume(q.volume)}`,
+      );
+      if (ctx.weeklyChange !== null) {
+        parts.push(`Изменение за неделю: ${ctx.weeklyChange >= 0 ? "+" : ""}${ctx.weeklyChange.toFixed(2)}%`);
+      }
+    }
+
+    if (ctx.technicalSummary) {
+      parts.push(`Техническая сводка TradingView: ${ctx.technicalSummary} (recommend: ${ctx.technicalRecommend?.toFixed(2) ?? "n/a"})`);
+    }
+
+    if (ctx.sentiment) {
+      const s = ctx.sentiment;
+      parts.push(`Сентимент X.com: ${s.label} (score: ${s.score.toFixed(1)}, выборка: ${s.sampleSize} постов)`);
+      if (s.tweetSamples && s.tweetSamples.length > 0) {
+        for (const sample of s.tweetSamples.slice(0, 3)) {
+          parts.push(`  - @${sample.username}: "${sample.text.slice(0, 150)}"`);
+        }
+      }
+    }
+
+    if (ctx.news && ctx.news.length > 0) {
+      parts.push("Последние новости:");
+      for (const n of ctx.news.slice(0, 3)) {
+        parts.push(`  - ${n.title} (${n.source})`);
+      }
+    }
+
+    if (parts.length === 0) return "";
+    return `--- РЫНОЧНЫЕ ДАННЫЕ (используй в анализе) ---\n${parts.join("\n")}`;
   }
 
   private formatVolume(v: number): string {
