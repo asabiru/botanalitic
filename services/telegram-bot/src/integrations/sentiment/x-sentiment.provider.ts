@@ -66,8 +66,7 @@ const MAX_TIMELINE_TWEETS = 10;
 export class XSentimentProvider implements SentimentProvider {
   readonly name = "x-sentiment";
   private scraper: Scraper;
-  private initialized = false;
-  private loginAttempted = false;
+  private initPromise: Promise<void> | null = null;
 
   constructor(private cache: MarketCache) {
     this.scraper = new Scraper();
@@ -91,13 +90,14 @@ export class XSentimentProvider implements SentimentProvider {
     }
   }
 
-  private async ensureInitialized(): Promise<void> {
-    if (this.initialized) return;
-    this.initialized = true;
+  private ensureInitialized(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.doInitialize();
+    }
+    return this.initPromise;
+  }
 
-    if (this.loginAttempted) return;
-    this.loginAttempted = true;
-
+  private async doInitialize(): Promise<void> {
     const username = process.env.TWITTER_USERNAME;
     const password = process.env.TWITTER_PASSWORD;
     const email = process.env.TWITTER_EMAIL;
