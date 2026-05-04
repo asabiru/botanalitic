@@ -1,91 +1,123 @@
-# Developer Guide — AI Market View Bot
+# Developer Guide — AI Finance
 
-Это руководство нужно, чтобы ты мог сам продолжать разработку проекта без привязки ко мне.
+Руководство для продолжения разработки проекта.
 
 ---
 
 ## 1. Что это за проект
 
-**AI Market View Bot** — Telegram-бот для продажи аналитики по финансовым инструментам.
+**AI Finance** — Telegram-бот для AI-аналитики финансовых инструментов с данными в реальном времени.
 
-### MVP уже покрывает:
-- выбор инструмента
-- ввод тикера
-- создание заказа
-- ссылка на оплату через ЮKassa
-- webhook-подтверждение оплаты
-- автоматическую отправку аналитики после оплаты
-- просмотр заявок клиента
+### Ключевые возможности:
+- 12 финансовых инструментов (валюты, сырьё, акции, индексы, крипто)
+- Котировки в реальном времени из Yahoo Finance, MOEX ISS, CoinGecko, ЦБ РФ
+- Технический анализ от TradingView Scanner API
+- Новости из Investing.com и Bloomberg RSS
+- Сентимент-анализ из X.com (stub)
+- Генерация PNG-графиков цен и объёмов через QuickChart.io
+- Полный аналитический отчёт с Pivot Points, SMA, торговыми сценариями
+- Опциональная оплата через ЮKassa
 
 ---
 
-## 2. Текущая архитектура
+## 2. Архитектура
 
 ```text
 root/
-  package.json
-  .env.example
-  README.md
-  docs/
-    developer-guide.md
+  package.json                    — workspaces, scripts
   services/
     telegram-bot/
-      package.json
+      package.json                — зависимости бота
       tsconfig.json
       src/
-        index.ts
-        config.ts
-        catalog.ts
-        ai-analysis.ts
-        yookassa.ts
-        session-store.ts
-        order-store.ts
-        app-context.ts
-        server.ts
+        index.ts                  — Telegram handlers, меню, котировки
+        config.ts                 — env-переменные (zod)
+        catalog.ts                — каталог инструментов
+        quotes.ts                 — live-котировки (fetchLiveQuote)
+        ai-analysis.ts            — полный аналитический отчёт + графики
+        app-context.ts            — singleton-сервисы
+        server.ts                 — Express HTTP + webhook
+        yookassa.ts               — ЮKassa (опционально)
+        session-store.ts          — сессии в памяти
+        order-store.ts            — заказы в памяти + файл
+
+        integrations/
+          market-data.service.ts  — главный сервис: объединяет все провайдеры
+          instrument-mapper.ts    — маппинг инструмент → провайдер + символы
+          cache/
+            market-cache.ts       — TTL-кэш (60с котировки, 5м история, 15м новости)
+          market-data/
+            provider.interface.ts — MarketQuote, HistoricalBar, TechnicalSummary
+            yahoo-finance.provider.ts
+            moex.provider.ts
+            coingecko.provider.ts
+            cbr.provider.ts
+            tradingview.provider.ts
+            index.ts              — фабрика провайдеров
+          news/
+            news.interface.ts     — NewsItem
+            rss-news.provider.ts
+            investing-rss.provider.ts
+            bloomberg-rss.provider.ts
+          sentiment/
+            x-sentiment.provider.ts
+          chart/
+            chart-generator.ts    — QuickChart.io (price + volume charts)
+          competitor/
+            competitor.interface.ts     — типы для анализа конкурентов
+            competitor-research.service.ts — агент исследования конкурентов
 ```
 
 ### Назначение модулей
 
-#### `index.ts`
-Главная точка входа:
-- запускает Telegram-бота
-- поднимает HTTP-сервер
-- содержит пользовательские сценарии
-
-#### `config.ts`
-Проверяет и читает env-переменные.
-
-#### `catalog.ts`
-Каталог инструментов, цены, тексты категорий.
+#### `quotes.ts`
+Модуль live-котировок. Функция `fetchLiveQuote()` получает MarketContext из MarketDataService и конвертирует в InstrumentQuote с ценой, изменением, объёмом, недельным изменением и технической рекомендацией.
 
 #### `ai-analysis.ts`
-Сейчас это демо-генератор аналитики.  
-В будущем сюда нужно подключить реальный AI pipeline.
+Генерирует полный аналитический отчёт (`AnalysisResult`):
+- `text` — HTML-форматированный текст с 8 разделами
+- `charts` — массив PNG-буферов (график цены + график объёмов)
 
-#### `yookassa.ts`
-Интеграция создания платежа через ЮKassa API.
+Разделы отчёта:
+1. Текущая котировка + Pivot Points
+2. Техническая сводка TradingView
+3. Сентимент X.com
+4. Исторический анализ (SMA, волатильность)
+5. Торговые сценарии с уровнями
+6. Риски
+7. Торговая идея (вход, стоп, тейк)
+8. Последние новости
 
-#### `session-store.ts`
-Пользовательская сессия в памяти:
-- выбранный инструмент
-- тикер
-- профиль
-- последний payment id
+#### `integrations/market-data.service.ts`
+Центральный сервис `MarketDataService`. Метод `getMarketContext(instrumentId, ticker?)` параллельно загружает:
+- котировку (провайдер по маппингу)
+- историческую линейку за месяц
+- новости (RSS из 3 источников, дедупликация)
+- техническую сводку TradingView
+- сентимент X.com
 
-#### `order-store.ts`
-Хранилище заказов.
-Сейчас:
-- хранит заказы в памяти
-- дополнительно сохраняет их в `tmp/orders.json`
+#### `integrations/instrument-mapper.ts`
+Маппинг 12 инструментов на провайдеры:
+- Какой провайдер использовать (yahoo, moex, coingecko, cbr)
+- Символ по умолчанию
+- Нужен ли тикер от пользователя
+- Ключевые слова для поиска новостей
+- Символ и биржа TradingView
 
-#### `server.ts`
-Express HTTP API:
-- healthcheck
-- webhook ЮKassa
-- список заказов пользователя
+#### `integrations/chart/chart-generator.ts`
+Генерация PNG-графиков через QuickChart.io API:
+- `generatePriceChart()` — линейный график close/high/low
+- `generateVolumeChart()` — столбчатый график объёмов (зелёный/красный)
 
-#### `app-context.ts`
-Общие singleton-экземпляры сервисов и хранилищ.
+#### `integrations/competitor/competitor-research.service.ts`
+Агент-исследователь конкурентов. Класс `CompetitorResearchService`:
+- `generateReport()` — генерирует полный отчёт: профили конкурентов, матрица фич, идеи для развития
+- `formatReportHTML()` — форматирует отчёт в Telegram HTML
+- `scanTrends()` — парсит RSS-ленты крипто/финтех новостей и выделяет тренды
+- Анализирует 7 конкурентов: StockChangeAlertBot, FinamTradeBot, Trader.dev, Trojan Bot, Maestro Bot, TradingView, Investing.com
+- Строит матрицу фич (что есть у конкурентов, чего нет у нас)
+- Генерирует идеи с приоритетами (high/medium/low) и категориями (feature/ux/monetization/marketing/data)
+- Кэширование: 24 часа
 
 ---
 
@@ -98,222 +130,96 @@ npm install
 
 ### Настройка env
 ```bash
-copy .env.example .env
+cp .env.example .env
 ```
 
-Заполни минимум:
-
+Минимум:
 - `TELEGRAM_BOT_TOKEN`
-- `YOOKASSA_SHOP_ID`
-- `YOOKASSA_SECRET_KEY`
-- `YOOKASSA_RETURN_URL`
-- `PORT`
 
-### Запуск разработки
+Опционально:
+- `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты
+- `OPENAI_API_KEY` — для будущей AI-интеграции
+- `PORT` — порт HTTP-сервера
+
+### Запуск
 ```bash
 npm run dev
 ```
 
-### Проверка типов
+### Проверка
 ```bash
 npm run typecheck
-```
-
-### Сборка
-```bash
 npm run build
 ```
 
 ---
 
-## 4. Что нужно сделать в первую очередь дальше
+## 4. Как добавить новый инструмент
 
-### Приоритет 1 — База данных
-Сейчас заказы лежат в `tmp/orders.json`, это временное решение.
-
-Нужно заменить на:
-- PostgreSQL
-- Prisma ORM
-
-Минимальные таблицы:
-- users
-- orders
-- payments
-- deliveries
+1. Добавить запись в `catalog.ts` (название, описание, цена, promptHint)
+2. Добавить маппинг в `integrations/instrument-mapper.ts` (провайдер, символ, ключевые слова)
+3. Добавить мета в `quotes.ts` → `INSTRUMENT_META` (тикер для отображения, валюта, единицы)
 
 ---
 
-## 5. Как лучше развивать проект
+## 5. Как добавить нового провайдера данных
 
-### Этап 1 — Persistence
-Сделать:
-- Prisma schema
-- миграции
-- репозитории
-- отказ от `order-store.ts` на файлах
-
-### Этап 2 — Реальный AI
-Сделать:
-- модуль `market-data/`
-- модуль `prompt-builder/`
-- модуль `analysis-runner/`
-- провайдер LLM (OpenAI / Claude / локальные модели)
-- шаблоны аналитики по классам активов
-
-### Этап 3 — Надёжность
-Сделать:
-- очередь задач
-- retry на доставку аналитики
-- идемпотентность webhook
-- логирование
-- алерты
-- аудит действий
-
-### Этап 4 — Коммерческий контур
-Сделать:
-- оферту
-- privacy policy
-- disclaimer
-- тарифы
-- подписки
-- историю покупок
-- админ-раздел
+1. Создать файл в `integrations/market-data/` с реализацией `MarketDataProvider`
+2. Добавить тип в `ProviderType` в `instrument-mapper.ts`
+3. Зарегистрировать в фабрике `integrations/market-data/index.ts`
+4. Добавить маппинг инструментов в `instrument-mapper.ts`
 
 ---
 
-## 6. Как менять каталог инструментов
+## 6. Как работает кэширование
 
-Редактируй файл:
-
-```text
-services/telegram-bot/src/catalog.ts
-```
-
-Там можно:
-- менять список рынков
-- менять цены
-- менять описания
-- менять promptHint для AI
+Класс `MarketCache` в `cache/market-cache.ts`:
+- In-memory Map с TTL
+- Каждый провайдер проверяет кэш перед HTTP-запросом
+- TTL: котировки 60с, история 5м, новости 15м, сентимент 10м, тех. анализ 2м
 
 ---
 
-## 7. Как подключить реальный OpenAI
+## 7. Как работают графики
 
-Сейчас `ai-analysis.ts` возвращает демо-текст.
-
-Чтобы подключить реальную модель:
-1. установить официальный SDK
-2. создать `OpenAiAnalysisService`
-3. вынести prompt templates
-4. подключить market data context
-5. валидировать и сокращать ответ
-6. логировать стоимость генерации
+- Используется сервис [QuickChart.io](https://quickchart.io/) — бесплатный, без API key
+- Отправляем POST с Chart.js конфигурацией, получаем PNG
+- Два типа: линейный график цены (close/high/low) и столбчатый график объёмов
+- Графики отправляются как фото в Telegram (`replyWithPhoto`)
 
 ---
 
-## 8. Как подключить сбор данных
+## 8. Как устроена ЮKassa
 
-Важно: некоторые источники имеют ограничения по лицензии, scraping и условиям использования.
-
-Безопасный путь:
-- использовать официальные API там, где они есть
-- не нарушать ToS сайтов
-- разделить:
-  - market data provider
-  - news provider
-  - social sentiment provider
-
-Рекомендуемая структура:
-```text
-src/
-  integrations/
-    news/
-    market-data/
-    sentiment/
-```
+- Опциональна — если `YOOKASSA_SHOP_ID` и `YOOKASSA_SECRET_KEY` не заданы, бот работает в бесплатном режиме
+- `yooKassaService.isConfigured` проверяет наличие ключей
+- Без ЮKassa: нажатие «Оплатить» сразу генерирует анализ
+- С ЮKassa: создаётся ссылка на оплату → webhook → автоматическая доставка
 
 ---
 
 ## 9. Что важно не сломать
 
-При доработках следи за инвариантами:
-
-- заказ должен создаваться до платежа
-- payment metadata должна содержать `orderId`
-- webhook должен быть идемпотентным
-- анализ нельзя отправлять до подтверждения оплаты
-- аналитика должна содержать disclaimer
-- нужно избегать обещаний гарантированной доходности
+- заказ создаётся до платежа
+- payment metadata содержит `orderId`
+- webhook идемпотентен
+- анализ содержит disclaimer
+- графики генерируются из реальных исторических данных
+- котировки кэшируются для оптимизации
 
 ---
 
-## 10. Как публиковать на GitHub
+## 10. Дальнейшее развитие
 
-### Инициализация
-```bash
-git init
-git add .
-git commit -m "feat: initial AI Market View bot MVP"
-```
+Полный план с 9 этапами: [`docs/roadmap.md`](roadmap.md)
 
-### Создание репозитория
-Либо через GitHub UI, либо через `gh` CLI.
-
-### Подключение remote
-```bash
-git remote add origin https://github.com/USERNAME/REPOSITORY.git
-git branch -M main
-git push -u origin main
-```
-
----
-
-## 11. Что я бы делал следующим коммитом
-
-Рекомендую следующую последовательность:
-
-### Коммит 1
-`feat: add prisma and postgres persistence`
-
-### Коммит 2
-`feat: add verified yookassa webhook processing`
-
-### Коммит 3
-`feat: add real ai analysis pipeline`
-
-### Коммит 4
-`feat: add admin tools and operator workflow`
-
----
-
-## 12. Идеальный target state проекта
-
-Если доводить до сильной production-версии, то нужно:
-
-- PostgreSQL
-- Prisma
-- Redis
-- job queue
-- webhook verification
-- полноценный AI pipeline
-- abstraction над data providers
-- аналитика с шаблонами по типу актива
-- операторский кабинет
-- логирование и мониторинг
-- unit/integration tests
-- Docker setup
-- deploy pipeline
-- юридические документы
-
----
-
-## 13. Если будешь продолжать сам
-
-Лучший практический путь:
-1. сначала БД
-2. потом webhook-надежность
-3. потом AI pipeline
-4. потом data providers
-5. потом админка и операционный контур
-
-Именно в таком порядке проект будет расти наиболее устойчиво.
+Краткий обзор приоритетов:
+1. **OpenAI интеграция** — генерация аналитики через GPT
+2. **X.com Sentiment API** — реальный сентимент вместо stub
+3. **Persistence** — PostgreSQL + Prisma
+4. **Подписки и алерты** — утренний/вечерний обзор, алерты по уровням
+5. **Улучшение графиков** — SMA, Bollinger, свечи
+6. **Миграция yahoo-finance2** — `historical()` → `chart()`
+7. **Качество кода** — тесты, CI/CD, ESLint
+8. **Production deployment** — Docker, мониторинг
+9. **Коммерческий контур** — тарифы, реферальная программа, админ-панель
