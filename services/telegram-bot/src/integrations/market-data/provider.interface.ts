@@ -25,6 +25,22 @@ export type TechnicalSummary =
   | "sell"
   | "strong_sell";
 
+export interface Fundamentals {
+  symbol: string;
+  marketCap: number | null;
+  peRatio: number | null;
+  forwardPe: number | null;
+  eps: number | null;
+  dividendYield: number | null;
+  dividendRate: number | null;
+  beta: number | null;
+  high52w: number | null;
+  low52w: number | null;
+  currency: string | null;
+  shortName: string | null;
+  longName: string | null;
+}
+
 export interface MarketDataProvider {
   readonly name: string;
   getQuote(symbol: string): Promise<MarketQuote | null>;
@@ -33,4 +49,5 @@ export interface MarketDataProvider {
     period: string,
   ): Promise<HistoricalBar[]>;
   getSupportedInstruments(): string[];
+  getFundamentals?(symbol: string): Promise<Fundamentals | null>;
 }

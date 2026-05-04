@@ -10,12 +10,14 @@
 
 ### Ключевые возможности:
 - 12 финансовых инструментов (валюты, сырьё, акции, индексы, крипто)
-- Котировки в реальном времени из Yahoo Finance, MOEX ISS, CoinGecko, ЦБ РФ
-- Технический анализ от TradingView Scanner API
+- Котировки в реальном времени из Yahoo Finance (+ Stooq fallback при rate-limit), MOEX ISS, CoinGecko, ЦБ РФ
+- Фундаментальные данные через Yahoo `quoteSummary` (P/E, EPS, dividends, market cap, beta, 52w high/low)
+- Технический анализ от TradingView Scanner API — region-aware (russia/crypto/forex/global) с fallback на global
 - Новости из Investing.com и Bloomberg RSS
-- Сентимент-анализ из X.com (stub)
+- **Реальный AI-анализ через OpenAI GPT** — GPT получает весь market context и возвращает structured JSON-инсайт
+- **Сентимент по новостям через OpenAI** (fallback — эвристика по ключевым словам; X.com stub оставлен как опция)
 - Генерация PNG-графиков цен и объёмов через QuickChart.io
-- Полный аналитический отчёт с Pivot Points, SMA, торговыми сценариями
+- Полный аналитический отчёт с Pivot Points, SMA, **динамическими уровнями от ATR**, GPT-сценариями
 - Опциональная оплата через ЮKassa
 
 ---
@@ -47,20 +49,24 @@ root/
           cache/
             market-cache.ts       — TTL-кэш (60с котировки, 5м история, 15м новости)
           market-data/
-            provider.interface.ts — MarketQuote, HistoricalBar, TechnicalSummary
-            yahoo-finance.provider.ts
+            provider.interface.ts — MarketQuote, HistoricalBar, TechnicalSummary, Fundamentals
+            yahoo-finance.provider.ts — retry + Stooq fallback + getFundamentals
             moex.provider.ts
             coingecko.provider.ts
             cbr.provider.ts
-            tradingview.provider.ts
+            tradingview.provider.ts — region-aware (russia/crypto/forex/global)
             index.ts              — фабрика провайдеров
           news/
             news.interface.ts     — NewsItem
             rss-news.provider.ts
             investing-rss.provider.ts
             bloomberg-rss.provider.ts
+          ai/
+            openai-client.ts      — общий OpenAI client + проверка isOpenAIConfigured()
+            openai-analyzer.ts    — OpenAIAnalyzer: structured AI-инсайт по market context
           sentiment/
             x-sentiment.provider.ts
+            openai-news-sentiment.provider.ts — GPT-оценка тональности новостных заголовков
           chart/
             chart-generator.ts    — QuickChart.io (price + volume charts)
           competitor/
@@ -80,17 +86,20 @@ root/
 
 #### `ai-analysis.ts`
 Генерирует полный аналитический отчёт (`AnalysisResult`):
-- `text` — HTML-форматированный текст с 8 разделами
+- `text` — HTML-форматированный текст с разделами
 - `charts` — массив PNG-буферов (график цены + график объёмов)
+
+Использует `OpenAIAnalyzer` для основного тезиса, сценариев, рисков, рекомендации и уровней, если задан `OPENAI_API_KEY`. При отсутствии ключа или ошибке GPT — работает детерминированный шаблон.
 
 Разделы отчёта:
 1. Текущая котировка + Pivot Points
 2. Техническая сводка TradingView
-3. Сентимент X.com
-4. Исторический анализ (SMA, волатильность)
-5. Торговые сценарии с уровнями
-6. Риски
-7. Торговая идея (вход, стоп, тейк)
+3. Сентимент (OpenAI по новостям → fallback X.com)
+3.5. Фундаментальные данные (P/E, EPS, dividends, market cap, beta, 52w)
+4. Исторический анализ (SMA 5/10/20/50, волатильность, Sharpe, Sortino)
+5. Торговые сценарии (GPT-тезис + 3 сценария + драйверы)
+6. Риски (GPT по инструменту)
+7. Торговая идея (вход, стоп, тейк) — уровни рассчитываются через `computeTradingLevels()` от ATR(14), а не фиксированными процентами
 8. Последние новости
 
 #### `integrations/market-data.service.ts`
@@ -98,8 +107,9 @@ root/
 - котировку (провайдер по маппингу)
 - историческую линейку за месяц
 - новости (RSS из 3 источников, дедупликация)
-- техническую сводку TradingView
-- сентимент X.com
+- техническую сводку TradingView (с выбором региона)
+- фундаментальные показатели (`provider.getFundamentals?.()` — опциональный метод провайдера)
+- сентимент: сначала OpenAI по новостям (если есть ключ и новости), иначе fallback через X.com stub
 
 #### `integrations/instrument-mapper.ts`
 Маппинг 12 инструментов на провайдеры:

@@ -18,8 +18,26 @@ export interface TechnicalAnalysisResult {
   timestamp: Date;
 }
 
+/**
+ * TradingView's public scanner API is partitioned by region. The default
+ * `global/scan` endpoint does NOT cover Russian (MOEX) symbols — requests for
+ * MOEX:* tickers there return empty rows. Russian instruments must be queried
+ * via `russia/scan`. We pick the right endpoint based on the exchange and
+ * fall back to the global scanner if needed.
+ */
 export class TradingViewProvider {
   readonly name = "tradingview";
+
+  private static readonly RUSSIA_EXCHANGES = new Set(["MOEX", "RUS"]);
+  private static readonly CRYPTO_EXCHANGES = new Set([
+    "BINANCE",
+    "BYBIT",
+    "OKX",
+    "BITSTAMP",
+    "COINBASE",
+    "KRAKEN",
+  ]);
+  private static readonly FOREX_EXCHANGES = new Set(["FX", "FX_IDC", "OANDA"]);
 
   constructor(private cache: MarketCache) {}
 
@@ -31,11 +49,42 @@ export class TradingViewProvider {
     const cached = this.cache.get<TechnicalAnalysisResult>(cacheKey);
     if (cached) return cached;
 
-    try {
-      const fullSymbol = exchange ? `${exchange}:${symbol}` : symbol;
+    const fullSymbol = exchange ? `${exchange}:${symbol}` : symbol;
 
+    // Try the region-specific scanner first; if that returns nothing,
+    // fall back to the global scanner.
+    const region = this.regionFor(exchange);
+    const candidates = region === "global"
+      ? ["global"]
+      : [region, "global"];
+
+    for (const r of candidates) {
+      const result = await this.scan(fullSymbol, symbol, r);
+      if (result) {
+        this.cache.set(cacheKey, result, MarketCache.ttlFor("technical"));
+        return result;
+      }
+    }
+    return null;
+  }
+
+  private regionFor(exchange?: string): string {
+    if (!exchange) return "global";
+    const upper = exchange.toUpperCase();
+    if (TradingViewProvider.RUSSIA_EXCHANGES.has(upper)) return "russia";
+    if (TradingViewProvider.CRYPTO_EXCHANGES.has(upper)) return "crypto";
+    if (TradingViewProvider.FOREX_EXCHANGES.has(upper)) return "forex";
+    return "global";
+  }
+
+  private async scan(
+    fullSymbol: string,
+    symbol: string,
+    region: string,
+  ): Promise<TechnicalAnalysisResult | null> {
+    try {
       const resp = await axios.post<TvScannerResponse>(
-        "https://scanner.tradingview.com/global/scan",
+        `https://scanner.tradingview.com/${region}/scan`,
         {
           symbols: { tickers: [fullSymbol] },
           columns: ["Recommend.All"],
@@ -43,27 +92,20 @@ export class TradingViewProvider {
         { timeout: 10_000 },
       );
 
-      if (!resp.data.data || resp.data.data.length === 0) {
-        return null;
-      }
-
+      if (!resp.data.data || resp.data.data.length === 0) return null;
       const recommend = resp.data.data[0].d[0];
       if (recommend == null || Number.isNaN(recommend)) return null;
-      const summary = this.toSummary(recommend);
 
-      const result: TechnicalAnalysisResult = {
+      return {
         symbol,
-        summary,
+        summary: this.toSummary(recommend),
         recommend,
         timestamp: new Date(),
       };
-
-      this.cache.set(cacheKey, result, MarketCache.ttlFor("technical"));
-      return result;
     } catch (err) {
-      console.error(
-        `[TradingView] getTechnicalSummary error for ${symbol}:`,
-        err,
+      console.warn(
+        `[TradingView] scan(${region}) error for ${fullSymbol}:`,
+        err instanceof Error ? err.message : err,
       );
       return null;
     }

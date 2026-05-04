@@ -1,4 +1,9 @@
-import type { MarketQuote, HistoricalBar, TechnicalSummary } from "./market-data/provider.interface.js";
+import type {
+  MarketQuote,
+  HistoricalBar,
+  TechnicalSummary,
+  Fundamentals,
+} from "./market-data/provider.interface.js";
 import type { NewsItem } from "./news/news.interface.js";
 import type { SentimentData } from "./sentiment/x-sentiment.provider.js";
 import type { TechnicalAnalysisResult } from "./market-data/tradingview.provider.js";
@@ -11,6 +16,8 @@ import { RssNewsProvider } from "./news/rss-news.provider.js";
 import { InvestingRssProvider } from "./news/investing-rss.provider.js";
 import { BloombergRssProvider } from "./news/bloomberg-rss.provider.js";
 import { XSentimentProvider } from "./sentiment/x-sentiment.provider.js";
+import { OpenAINewsSentimentProvider } from "./sentiment/openai-news-sentiment.provider.js";
+import { isOpenAIConfigured } from "./ai/openai-client.js";
 import {
   getInstrumentMapping,
   resolveSymbol,
@@ -25,6 +32,7 @@ export interface MarketContext {
   technicalSummary: TechnicalSummary | null;
   technicalRecommend: number | null;
   sentiment: SentimentData | null;
+  fundamentals: Fundamentals | null;
   fetchedAt: Date;
 }
 
@@ -36,6 +44,7 @@ export class MarketDataService {
   private investingRss: InvestingRssProvider;
   private bloombergRss: BloombergRssProvider;
   private xSentiment: XSentimentProvider;
+  private openAiSentiment: OpenAINewsSentimentProvider;
 
   constructor() {
     this.providers = createAllProviders(this.cache);
@@ -44,6 +53,7 @@ export class MarketDataService {
     this.investingRss = new InvestingRssProvider(this.cache);
     this.bloombergRss = new BloombergRssProvider(this.cache);
     this.xSentiment = new XSentimentProvider(this.cache);
+    this.openAiSentiment = new OpenAINewsSentimentProvider(this.cache);
   }
 
   async getMarketContext(
@@ -59,14 +69,19 @@ export class MarketDataService {
     const provider = this.providers[mapping.provider];
     const keywords = getNewsKeywords(instrumentId);
 
-    const [quote, historicalBars, news, technical, sentiment] =
+    const [quote, historicalBars, news, technical, fallbackSentiment, fundamentals] =
       await Promise.all([
         provider.getQuote(symbol),
         provider.getHistoricalData(symbol, "1m"),
         this.aggregateNews(keywords, instrumentId),
         this.fetchTechnical(mapping, ticker),
         this.xSentiment.getSentiment(instrumentId),
+        provider.getFundamentals?.(symbol) ?? Promise.resolve(null),
       ]);
+
+    const sentiment = isOpenAIConfigured() && news.length > 0
+      ? (await this.openAiSentiment.getSentimentFromNews(instrumentId, news)) ?? fallbackSentiment
+      : fallbackSentiment;
 
     const weeklyChange = this.calcWeeklyChange(historicalBars, quote);
 
@@ -78,6 +93,7 @@ export class MarketDataService {
       technicalSummary: technical?.summary ?? null,
       technicalRecommend: technical?.recommend ?? null,
       sentiment,
+      fundamentals,
       fetchedAt: new Date(),
     };
   }
@@ -146,6 +162,7 @@ export class MarketDataService {
 
   private emptyContext(): MarketContext {
     return {
+      fundamentals: null,
       quote: null,
       weeklyChange: null,
       historicalBars: [],
