@@ -1,6 +1,6 @@
 import express from "express";
 import { Input } from "telegraf";
-import { bot, orderStore, aiAnalysisService, marketDataService, competitorAgent, competitorResearchService, stockAnalyticsAgent, priceAlertStore, digestSubscriberStore, morningDigestService } from "./app-context.js";
+import { bot, orderStore, aiAnalysisService, marketDataService, competitorAgent, competitorResearchService, stockAnalyticsAgent, priceAlertStore, digestSubscriberStore, morningDigestService, economicCalendarProvider } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 import type { SuggestionStatus, SuggestionPriority } from "./integrations/competitor/competitor-suggestion-store.js";
 import type { RiskLevel, Horizon } from "./integrations/analytics/stock-category-store.js";
@@ -281,6 +281,32 @@ export function createServer() {
     } catch (err) {
       console.error("[API] digest preview error", err);
       res.status(500).json({ ok: false, error: "preview_failed" });
+    }
+  });
+
+  // === Economic Calendar API ===
+
+  app.get("/api/calendar", async (req, res) => {
+    const scope = (req.query.scope as string | undefined) ?? "all";
+    const country = req.query.country as string | undefined;
+    const instrumentId = req.query.instrumentId as string | undefined;
+    try {
+      let events;
+      if (instrumentId) {
+        events = await economicCalendarProvider.getEventsRelevantTo(instrumentId);
+      } else if (country) {
+        events = await economicCalendarProvider.getEventsForCountry(country);
+      } else if (scope === "today") {
+        events = await economicCalendarProvider.getTodayEvents();
+      } else if (scope === "high") {
+        events = await economicCalendarProvider.getUpcomingHighImpact(20);
+      } else {
+        events = await economicCalendarProvider.getEvents();
+      }
+      res.json({ ok: true, count: events.length, events });
+    } catch (err) {
+      console.error("[API] calendar error", err);
+      res.status(500).json({ ok: false, error: "calendar_failed" });
     }
   });
 

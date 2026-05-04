@@ -15,8 +15,10 @@ import { PriceAlertStore } from "./integrations/alerts/price-alert-store.js";
 import { PriceAlertService } from "./integrations/alerts/price-alert-service.js";
 import { DigestSubscriberStore } from "./integrations/digest/digest-subscriber-store.js";
 import { MorningDigestService } from "./integrations/digest/morning-digest-service.js";
+import { EconomicCalendarProvider } from "./integrations/calendar/economic-calendar.provider.js";
 
 const competitorCache = new MarketCache();
+const calendarCache = new MarketCache();
 
 export const sessionStore = new SessionStore();
 export const orderStore = new OrderStore();
@@ -38,3 +40,5 @@ export const priceAlertService = new PriceAlertService(priceAlertStore, marketDa
 
 export const digestSubscriberStore = new DigestSubscriberStore();
 export const morningDigestService = new MorningDigestService(digestSubscriberStore, marketDataService, bot);
+
+export const economicCalendarProvider = new EconomicCalendarProvider(calendarCache);

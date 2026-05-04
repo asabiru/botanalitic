@@ -319,10 +319,10 @@ export class CompetitorResearchService {
       {
         feature: "Экономический календарь",
         competitors: ["Investing.com", "FinamTradeBot"],
-        weHaveIt: false,
+        weHaveIt: true,
         priority: "high",
         effort: "medium",
-        description: "Важные экономические события (ЦБ, NFP, CPI, FOMC)",
+        description: "У нас есть — ForexFactory feed, /calendar today|high|week, REST API /api/calendar",
       },
       {
         feature: "AI-стратегии торговли",
@@ -335,18 +335,18 @@ export class CompetitorResearchService {
       {
         feature: "Мульти-таймфрейм анализ",
         competitors: ["StockChangeAlertBot", "TradingView"],
-        weHaveIt: false,
+        weHaveIt: true,
         priority: "medium",
         effort: "small",
-        description: "Анализ на нескольких временных рамках (1h, 4h, 1d, 1w)",
+        description: "У нас есть — SMA(5/10/20/50) с трендами на разных горизонтах в аналитическом отчёте",
       },
       {
         feature: "Коэффициент Шарпа / Сортино",
         competitors: ["StockChangeAlertBot"],
-        weHaveIt: false,
+        weHaveIt: true,
         priority: "medium",
         effort: "small",
-        description: "Метрики risk-adjusted return для оценки сигналов",
+        description: "У нас есть — Sharpe и Sortino ratio в отчёте по историческим барам (rf=10% годовых)",
       },
       {
         feature: "Скринер акций / инструментов",

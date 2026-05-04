@@ -115,11 +115,16 @@
 Полный план: [`docs/roadmap.md`](roadmap.md)
 
 ### Реализовано (в текущем PR)
-- CompetitorAgent — агент конкурентной разведки с хранилищем предложений
-- StockAnalyticsAgent — агент аналитики акций с 10 категориями и 20 seed-рекомендациями
+- CompetitorAgent — агент конкурентной разведки (15 конкурентов, feature matrix)
+- StockAnalyticsAgent — 21 категория, 152 seed-рекомендации
 - REST API для обоих агентов (10 эндпоинтов)
-- Telegram UI: кнопка «Категории акций», `/admin` панель
-- Данные хранятся в JSON-файлах (`tmp/competitor-suggestions.json`, `tmp/stock-categories.json`)
+- Telegram UI: единый flow «Аналитика», `/admin` панель
+- 🔔 Алерты по ценам: `/alert ТИКЕР above|below ЦЕНА`, polling 60с, 80+ тикеров
+- ☀️ Утренний дайджест: рассылка в 08:00 МСК, 7 ключевых рынков, `/digest on|off|preview`
+- 📅 Экономический календарь: ForexFactory feed, `/calendar today|high|week|<страна>`, фильтр по инструменту
+- 📊 Sharpe / Sortino ratio, max drawdown, годовая доходность в аналитическом отчёте
+- Мульти-таймфрейм SMA (5/10/20/50) с краткосрочным/среднесрочным/долгосрочным трендами
+- Данные хранятся в JSON-файлах (`tmp/competitor-suggestions.json`, `tmp/stock-categories.json`, `tmp/price-alerts.json`, `tmp/digest-subscribers.json`)
 
 ### Не реализовано / осталось сделать
 
@@ -136,10 +141,10 @@
 - PostgreSQL + Prisma
 - Сохранение заказов, пользователей
 
-### Приоритет 4 — Подписки и алерты
-- Утренний/вечерний обзор рынка
-- Алерты по уровням
-- Регулярная рассылка котировок
+### Приоритет 4 — Скринер инструментов
+- Поиск инструментов по фильтрам (P/E, объём, сектор)
+- Фильтрация акций по категориям и параметрам
+- TradingView screener-style API
 
 ### Приоритет 5 — Docker и deploy
 - Dockerfile

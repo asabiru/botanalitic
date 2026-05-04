@@ -3,10 +3,12 @@ import { Input } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { fetchLiveQuote, formatQuote } from "./quotes.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, competitorAgent, competitorResearchService, digestSubscriberStore, marketDataService, morningDigestService, orderStore, priceAlertService, priceAlertStore, sessionStore, stockAnalyticsAgent, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, competitorAgent, competitorResearchService, digestSubscriberStore, economicCalendarProvider, marketDataService, morningDigestService, orderStore, priceAlertService, priceAlertStore, sessionStore, stockAnalyticsAgent, yooKassaService } from "./app-context.js";
 import type { AlertDirection } from "./integrations/alerts/price-alert-store.js";
 import { config } from "./config.js";
 import type { AnalysisResult } from "./ai-analysis.js";
+import { formatEvent, impactEmoji } from "./integrations/calendar/economic-calendar.provider.js";
+import type { EconomicEvent } from "./integrations/calendar/economic-calendar.provider.js";
 
 async function sendAnalysisResult(ctx: any, result: AnalysisResult): Promise<void> {
   await ctx.reply(result.text, { parse_mode: "HTML" });
@@ -25,6 +27,7 @@ function mainMenu() {
     [Markup.button.callback("📊 Аналитика", "analytics_hub")],
     [Markup.button.callback("🔔 Алерты по ценам", "alerts_menu")],
     [Markup.button.callback("☀️ Утренний дайджест", "digest_menu")],
+    [Markup.button.callback("📅 Экономический календарь", "calendar_menu")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
@@ -871,6 +874,124 @@ bot.command("digest", async (ctx: any) => {
   }
 
   await ctx.reply("Используйте: /digest on | off | preview");
+});
+
+// === Economic Calendar ===
+
+async function renderCalendar(events: EconomicEvent[], title: string, emptyHint: string): Promise<string> {
+  if (events.length === 0) {
+    return [`<b>${title}</b>`, "", emptyHint].join("\n");
+  }
+  const high = events.filter((e) => e.impact === "high");
+  const medium = events.filter((e) => e.impact === "medium");
+  const lines: string[] = [
+    `<b>${title}</b>`,
+    "",
+    `Всего событий: ${events.length}  |  ${impactEmoji("high")} высокого: ${high.length}  |  ${impactEmoji("medium")} среднего: ${medium.length}`,
+    "",
+  ];
+  for (const ev of events.slice(0, 25)) {
+    lines.push(formatEvent(ev));
+  }
+  if (events.length > 25) {
+    lines.push("", `<i>...и ещё ${events.length - 25} событий</i>`);
+  }
+  lines.push("", "<i>Источник: ForexFactory · время МСК</i>");
+  return lines.join("\n");
+}
+
+bot.action("calendar_menu", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    [
+      "<b>📅 Экономический календарь</b>",
+      "",
+      "Важные события: решения ЦБ, NFP, CPI, FOMC, заседания ОПЕК.",
+      "Источник: ForexFactory · обновляется ежечасно.",
+    ].join("\n"),
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("📆 События сегодня", "calendar_today")],
+        [Markup.button.callback("🔴 Только high impact", "calendar_high")],
+        [Markup.button.callback("🗓 Все события на неделю", "calendar_week")],
+        [Markup.button.callback("◀️ Главное меню", "back_main")],
+      ]),
+    },
+  );
+});
+
+bot.action("calendar_today", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ Загружаю события на сегодня...");
+  try {
+    const events = await economicCalendarProvider.getTodayEvents();
+    const text = await renderCalendar(events, "📆 События сегодня", "На сегодня значимых событий не запланировано.");
+    await ctx.reply(text, { parse_mode: "HTML" });
+  } catch (err) {
+    console.error("[Calendar] today error:", err);
+    await ctx.reply("Не удалось загрузить календарь. Попробуйте позже.");
+  }
+});
+
+bot.action("calendar_high", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ Загружаю high impact события...");
+  try {
+    const events = await economicCalendarProvider.getUpcomingHighImpact(15);
+    const text = await renderCalendar(events, "🔴 Ближайшие high impact события", "Пока нет событий уровня high impact на ближайшее время.");
+    await ctx.reply(text, { parse_mode: "HTML" });
+  } catch (err) {
+    console.error("[Calendar] high error:", err);
+    await ctx.reply("Не удалось загрузить календарь. Попробуйте позже.");
+  }
+});
+
+bot.action("calendar_week", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ Загружаю календарь на неделю...");
+  try {
+    const events = await economicCalendarProvider.getEvents();
+    const filtered = events.filter((e) => e.impact === "high" || e.impact === "medium");
+    const text = await renderCalendar(filtered, "🗓 События на неделю (high + medium)", "Нет значимых событий.");
+    await ctx.reply(text, { parse_mode: "HTML" });
+  } catch (err) {
+    console.error("[Calendar] week error:", err);
+    await ctx.reply("Не удалось загрузить календарь. Попробуйте позже.");
+  }
+});
+
+bot.command("calendar", async (ctx: any) => {
+  const arg = ctx.message.text.replace(/^\/calendar\s*/i, "").trim().toLowerCase();
+  await ctx.reply("⏳ Загружаю календарь...");
+  try {
+    if (arg === "today" || arg === "") {
+      const events = await economicCalendarProvider.getTodayEvents();
+      const text = await renderCalendar(events, "📆 События сегодня", "На сегодня значимых событий не запланировано.");
+      await ctx.reply(text, { parse_mode: "HTML" });
+      return;
+    }
+    if (arg === "high") {
+      const events = await economicCalendarProvider.getUpcomingHighImpact(15);
+      const text = await renderCalendar(events, "🔴 Ближайшие high impact события", "Пока нет high impact событий.");
+      await ctx.reply(text, { parse_mode: "HTML" });
+      return;
+    }
+    if (arg === "week") {
+      const events = await economicCalendarProvider.getEvents();
+      const filtered = events.filter((e) => e.impact === "high" || e.impact === "medium");
+      const text = await renderCalendar(filtered, "🗓 События на неделю", "Нет значимых событий.");
+      await ctx.reply(text, { parse_mode: "HTML" });
+      return;
+    }
+    const country = arg.toUpperCase();
+    const events = await economicCalendarProvider.getEventsForCountry(country);
+    const text = await renderCalendar(events, `📅 События по ${country}`, `Нет событий по стране ${country}.`);
+    await ctx.reply(text, { parse_mode: "HTML" });
+  } catch (err) {
+    console.error("[Calendar] command error:", err);
+    await ctx.reply("Не удалось загрузить календарь. Попробуйте позже.");
+  }
 });
 
 // === Text handler ===
