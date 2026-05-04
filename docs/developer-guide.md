@@ -65,7 +65,12 @@ root/
             chart-generator.ts    — QuickChart.io (price + volume charts)
           competitor/
             competitor.interface.ts     — типы для анализа конкурентов
-            competitor-research.service.ts — агент исследования конкурентов
+            competitor-research.service.ts — сервис исследования конкурентов
+            competitor-agent.ts           — агент: анализ + хранилище предложений
+            competitor-suggestion-store.ts — хранилище предложений (JSON)
+          analytics/
+            stock-category-store.ts       — хранилище категорий и рекомендаций (JSON)
+            stock-analytics-agent.ts      — агент аналитики акций
 ```
 
 ### Назначение модулей
@@ -137,6 +142,7 @@ cp .env.example .env
 - `TELEGRAM_BOT_TOKEN`
 
 Опционально:
+- `ADMIN_CHAT_ID` — Telegram chat ID администратора (для доступа к `/admin`)
 - `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты
 - `OPENAI_API_KEY` — для будущей AI-интеграции
 - `PORT` — порт HTTP-сервера
@@ -209,7 +215,34 @@ npm run build
 
 ---
 
-## 10. Дальнейшее развитие
+## 10. Агенты
+
+### CompetitorAgent
+Объединяет `CompetitorResearchService` и `CompetitorSuggestionStore`.
+
+- `runFullAnalysis()` — генерирует отчёт по конкурентам + автоматически создаёт предложения
+- Категории предложений: pricing, feature, ux, content, marketing, monetization, data
+- Статусы: new → accepted → implemented / rejected
+- Хранение: `tmp/competitor-suggestions.json`
+
+### StockAnalyticsAgent
+Управляет категориями акций и рекомендациями.
+
+- 10 seed-категорий: дивидендные, роста, голубые фишки, недооценённые, tech, аристократы, Layer 1, DeFi, мемкоины, рост США
+- 20 seed-рекомендаций: SBER, LKOH, GMKN, OZON, POSI, GAZP, ROSN, MTSS, AAPL, NVDA, MSFT, JNJ, KO, TSLA, ETH, SOL, UNI, AAVE, DOGE, PEPE
+- Инструменты: ru-stocks, us-stocks, crypto
+- Хранение: `tmp/stock-categories.json`
+
+### Как добавить нового агента
+1. Создать Store (хранилище) в `integrations/<имя>/` по аналогии с `StockCategoryStore`
+2. Создать Agent (бизнес-логика) по аналогии с `StockAnalyticsAgent`
+3. Зарегистрировать в `app-context.ts`
+4. Добавить REST API эндпоинты в `server.ts`
+5. Добавить Telegram UI в `index.ts`
+
+---
+
+## 11. Дальнейшее развитие
 
 Полный план с 9 этапами: [`docs/roadmap.md`](roadmap.md)
 
