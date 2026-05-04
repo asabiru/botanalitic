@@ -9,6 +9,8 @@ import { OrderStore } from "./order-store.js";
 import { PrismaOrderRepository, PrismaUserRepository } from "./repositories/index.js";
 import type { IOrderStore } from "./order-store-interface.js";
 import { MarketDataService } from "./integrations/market-data.service.js";
+import { PromoStore } from "./promo/promo-store.js";
+import { ReferralStore } from "./promo/referral.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -35,4 +37,6 @@ export const aiAnalysisService = new AiAnalysisService(
 );
 export const yooKassaService = new YooKassaService();
 export const marketDataService = new MarketDataService();
+export const promoStore = new PromoStore();
+export const referralStore = new ReferralStore();
 export const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);

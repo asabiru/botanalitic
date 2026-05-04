@@ -22,6 +22,9 @@ export type OrderRecord = {
   status: OrderStatus;
   createdAt: string;
   updatedAt: string;
+  promoCode?: string;
+  discountPercent?: number;
+  originalAmountRub?: number;
 };
 
 type PersistedOrderState = {

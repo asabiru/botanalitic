@@ -1,11 +1,13 @@
 import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, marketDataService, orderStore, sessionStore, userRepository, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, marketDataService, orderStore, promoStore, referralStore, sessionStore, userRepository, yooKassaService } from "./app-context.js";
+import { config } from "./config.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📚 Каталог аналитики", "catalog")],
+    [Markup.button.callback("🎁 Промокод", "promo_enter")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
@@ -16,6 +18,15 @@ function catalogKeyboard() {
   return Markup.inlineKeyboard(
     instrumentCatalog.map((item) => [Markup.button.callback(`${item.title} — ${item.priceRub} ₽`, `instrument:${item.id}`)])
   );
+}
+
+function calculateDiscount(priceRub: number, discountPercent: number): number {
+  return Math.round(priceRub * (1 - discountPercent / 100));
+}
+
+function formatPriceWithDiscount(originalPrice: number, discountPercent: number, promoCode: string): string {
+  const newPrice = calculateDiscount(originalPrice, discountPercent);
+  return `Цена: <s>${originalPrice}₽</s> → ${newPrice}₽ (скидка ${discountPercent}% по промокоду ${promoCode})`;
 }
 
 bot.start(async (ctx: any) => {
@@ -61,7 +72,9 @@ bot.action("buy_help", async (ctx: any) => {
       "1. Вы выбираете рынок или актив.",
       "2. При необходимости присылаете тикер.",
       "3. Бот создаёт заказ и ссылку на оплату ЮKassa.",
-      "4. После webhook-подтверждения оплаты бот отправляет аналитику автоматически."
+      "4. После webhook-подтверждения оплаты бот отправляет аналитику автоматически.",
+      "",
+      "💡 Используйте промокод для получения скидки!"
     ].join("\n")
   );
 });
@@ -85,7 +98,10 @@ bot.action("my_orders", async (ctx: any) => {
           `#${order.id}`,
           `${order.instrumentTitle}`,
           `Статус: ${order.status}`,
-          `Сумма: ${order.amountRub} ₽`,
+          order.originalAmountRub
+            ? `Сумма: ${order.amountRub} ₽ (было ${order.originalAmountRub} ₽, скидка ${order.discountPercent}%)`
+            : `Сумма: ${order.amountRub} ₽`,
+          order.promoCode ? `Промокод: ${order.promoCode}` : undefined,
           order.ticker ? `Тикер: ${order.ticker}` : undefined,
           `Создан: ${order.createdAt}`
         ]
@@ -114,6 +130,45 @@ bot.action("about", async (ctx: any) => {
   );
 });
 
+/* ── Promo code flow ─────────────────────────────────────────── */
+
+bot.action("promo_enter", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  sessionStore.patch(ctx.from.id, { awaitingPromoInput: true });
+  await ctx.reply("Введите промокод:");
+});
+
+bot.action("promo_clear", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  sessionStore.patch(ctx.from.id, { appliedPromoCode: undefined });
+  await ctx.reply("Промокод сброшен.", mainMenu());
+});
+
+/* ── Referral system ──────────────────────────────────────────── */
+
+bot.command("referral", async (ctx: any) => {
+  const record = referralStore.getOrCreate(ctx.from.id);
+  const botUsername = config.TELEGRAM_BOT_USERNAME ?? (await bot.telegram.getMe()).username;
+
+  await ctx.reply(
+    [
+      "🤝 <b>Реферальная программа</b>",
+      "",
+      `Ваш реферальный код: <code>${record.referralCode}</code>`,
+      "",
+      `Ссылка для друзей:`,
+      `https://t.me/${botUsername}?start=${record.referralCode}`,
+      "",
+      `Приглашённых: ${record.referredUsers.length}`,
+      "",
+      "Когда друг введёт ваш реферальный код, он получит скидку 20%, а вы — уведомление и бонус на следующий заказ."
+    ].join("\n"),
+    { parse_mode: "HTML" }
+  );
+});
+
+/* ── Instrument selection ─────────────────────────────────────── */
+
 bot.action(/^instrument:(.+)$/, async (ctx: any) => {
   await ctx.answerCbQuery();
 
@@ -131,11 +186,23 @@ bot.action(/^instrument:(.+)$/, async (ctx: any) => {
     investorProfile: undefined
   });
 
+  const session = sessionStore.get(ctx.from.id);
+  const priceLines: string[] = [`Стоимость: <b>${instrument.priceRub} ₽</b>`];
+
+  if (session.appliedPromoCode) {
+    const result = promoStore.validate(session.appliedPromoCode);
+    if (result.valid) {
+      const discounted = calculateDiscount(instrument.priceRub, result.promo.discountPercent);
+      priceLines.push(formatPriceWithDiscount(instrument.priceRub, result.promo.discountPercent, session.appliedPromoCode));
+      priceLines[0] = `Стоимость со скидкой: <b>${discounted} ₽</b>`;
+    }
+  }
+
   await ctx.reply(
     [
       `<b>${instrument.title}</b>`,
       instrument.description,
-      `Стоимость: <b>${instrument.priceRub} ₽</b>`,
+      ...priceLines,
       "",
       "Если для этой категории нужен тикер — отправьте его следующим сообщением.",
       "Если тикер не нужен, нажмите кнопку оплаты."
@@ -181,6 +248,8 @@ bot.action(/^demo:(.+)$/, async (ctx: any) => {
   }
 });
 
+/* ── Payment with promo discount ──────────────────────────────── */
+
 bot.action(/^pay:(.+)$/, async (ctx: any) => {
   await ctx.answerCbQuery();
 
@@ -197,13 +266,31 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
     await userRepository.upsert(ctx.from.id, ctx.from.username);
   }
 
+  let finalAmount = instrument.priceRub;
+  let appliedCode: string | undefined;
+  let discountPercent: number | undefined;
+  let originalAmount: number | undefined;
+
+  if (session.appliedPromoCode) {
+    const result = promoStore.validate(session.appliedPromoCode);
+    if (result.valid) {
+      originalAmount = instrument.priceRub;
+      discountPercent = result.promo.discountPercent;
+      finalAmount = calculateDiscount(instrument.priceRub, discountPercent);
+      appliedCode = session.appliedPromoCode;
+    }
+  }
+
   const order = await orderStore.create({
     telegramUserId: ctx.from.id,
     instrumentId: instrument.id,
     instrumentTitle: instrument.title,
-    amountRub: instrument.priceRub,
+    amountRub: finalAmount,
     ticker: session.ticker,
-    investorProfile: session.investorProfile
+    investorProfile: session.investorProfile,
+    promoCode: appliedCode,
+    discountPercent,
+    originalAmountRub: originalAmount
   });
 
   try {
@@ -211,8 +298,13 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
       instrument,
       telegramUserId: ctx.from.id,
       ticker: session.ticker,
-      orderId: order.id
+      orderId: order.id,
+      amountRub: finalAmount
     });
+
+    if (appliedCode) {
+      promoStore.use(appliedCode);
+    }
 
     await orderStore.update(order.id, {
       paymentId: payment.paymentId,
@@ -220,17 +312,25 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
       status: "waiting_payment"
     });
 
-    sessionStore.patch(ctx.from.id, { lastPaymentId: payment.paymentId });
+    sessionStore.patch(ctx.from.id, {
+      lastPaymentId: payment.paymentId,
+      appliedPromoCode: undefined
+    });
 
-    await ctx.reply(
-      [
-        `Заказ создан: ${order.id}`,
-        `Ссылка на оплату для ${instrument.title}:`,
-        payment.confirmationUrl,
-        "",
-        "После успешной оплаты ЮKassa отправит webhook, и бот автоматически пришлёт результат."
-      ].join("\n")
+    const lines: string[] = [`Заказ создан: ${order.id}`];
+
+    if (appliedCode && discountPercent && originalAmount) {
+      lines.push(formatPriceWithDiscount(originalAmount, discountPercent, appliedCode));
+    }
+
+    lines.push(
+      `Ссылка на оплату для ${instrument.title}:`,
+      payment.confirmationUrl,
+      "",
+      "После успешной оплаты ЮKassa отправит webhook, и бот автоматически пришлёт результат."
     );
+
+    await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
   } catch (error: any) {
     console.error("YooKassa createPayment error", error);
     await orderStore.update(order.id, { status: "cancelled" });
@@ -238,9 +338,175 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
   }
 });
 
+/* ── Admin commands ───────────────────────────────────────────── */
+
+function isAdmin(userId: number): boolean {
+  return config.ADMIN_CHAT_ID ? String(userId) === config.ADMIN_CHAT_ID : false;
+}
+
+bot.command("promo_list", async (ctx: any) => {
+  if (!isAdmin(ctx.from.id)) {
+    await ctx.reply("Команда доступна только администратору.");
+    return;
+  }
+
+  const codes = promoStore.list();
+
+  if (codes.length === 0) {
+    await ctx.reply("Промокодов нет.");
+    return;
+  }
+
+  const message = codes
+    .map(
+      (p) =>
+        [
+          `<b>${p.code}</b>`,
+          `Скидка: ${p.discountPercent}%`,
+          `Использовано: ${p.usedCount}${p.maxUses > 0 ? `/${p.maxUses}` : " (безлимит)"}`,
+          `Активен: ${p.active ? "да" : "нет"}`,
+          `Действует: ${p.validFrom.slice(0, 10)} — ${p.validUntil.slice(0, 10)}`
+        ].join("\n")
+    )
+    .join("\n\n");
+
+  await ctx.reply(message, { parse_mode: "HTML" });
+});
+
+bot.command("promo_create", async (ctx: any) => {
+  if (!isAdmin(ctx.from.id)) {
+    await ctx.reply("Команда доступна только администратору.");
+    return;
+  }
+
+  const args = ctx.message.text.split(/\s+/).slice(1);
+
+  if (args.length < 3) {
+    await ctx.reply("Формат: /promo_create <code> <discount%> <maxUses>\nПример: /promo_create SUMMER25 25 50");
+    return;
+  }
+
+  const [code, discountStr, maxUsesStr] = args;
+  const discountPercent = parseInt(discountStr, 10);
+  const maxUses = parseInt(maxUsesStr, 10);
+
+  if (isNaN(discountPercent) || isNaN(maxUses)) {
+    await ctx.reply("discount% и maxUses должны быть числами.");
+    return;
+  }
+
+  const result = promoStore.create({
+    code,
+    discountPercent,
+    maxUses,
+    validFrom: new Date().toISOString(),
+    validUntil: "2030-12-31T23:59:59Z",
+    active: true,
+  });
+
+  if ("error" in result) {
+    await ctx.reply(`Ошибка: ${result.error}`);
+    return;
+  }
+
+  await ctx.reply(`Промокод <b>${result.code}</b> создан (скидка ${result.discountPercent}%, макс. ${result.maxUses || "безлимит"}).`, { parse_mode: "HTML" });
+});
+
+bot.command("promo_deactivate", async (ctx: any) => {
+  if (!isAdmin(ctx.from.id)) {
+    await ctx.reply("Команда доступна только администратору.");
+    return;
+  }
+
+  const code = ctx.message.text.split(/\s+/)[1];
+
+  if (!code) {
+    await ctx.reply("Формат: /promo_deactivate <code>");
+    return;
+  }
+
+  const result = promoStore.deactivate(code);
+
+  if (!result) {
+    await ctx.reply("Промокод не найден.");
+    return;
+  }
+
+  await ctx.reply(`Промокод <b>${result.code}</b> деактивирован.`, { parse_mode: "HTML" });
+});
+
+/* ── Text handler (ticker + promo input) ──────────────────────── */
+
 bot.on("text", async (ctx: any) => {
   const text = ctx.message.text.trim();
   const session = sessionStore.get(ctx.from.id);
+
+  if (session.awaitingPromoInput) {
+    sessionStore.patch(ctx.from.id, { awaitingPromoInput: false });
+
+    const referralRecord = referralStore.getByCode(text.toUpperCase());
+    if (referralRecord) {
+      const refResult = referralStore.applyReferral(text.toUpperCase(), ctx.from.id);
+      if (refResult.success) {
+        sessionStore.patch(ctx.from.id, { referralCode: text.toUpperCase(), appliedPromoCode: text.toUpperCase() });
+
+        const referralPromoResult = promoStore.validate("FRIEND20");
+        if (referralPromoResult.valid) {
+          sessionStore.patch(ctx.from.id, { appliedPromoCode: "FRIEND20" });
+          await ctx.reply(
+            [
+              `✅ Реферальный код принят!`,
+              `Вам доступна скидка ${referralPromoResult.promo.discountPercent}% (промокод FRIEND20).`,
+              "",
+              "Скидка будет применена при оплате."
+            ].join("\n"),
+            mainMenu()
+          );
+        } else {
+          sessionStore.patch(ctx.from.id, { appliedPromoCode: undefined });
+          await ctx.reply("✅ Реферальный код принят, но скидка по реферальной программе сейчас недоступна.", mainMenu());
+        }
+
+        if (refResult.referrerUserId) {
+          try {
+            await bot.telegram.sendMessage(
+              refResult.referrerUserId,
+              "🎉 По вашей реферальной ссылке зарегистрировался новый пользователь! Вам доступна скидка на следующий заказ."
+            );
+          } catch {
+            // referrer may have blocked the bot
+          }
+        }
+        return;
+      } else {
+        await ctx.reply(`❌ ${refResult.error}`, mainMenu());
+        return;
+      }
+    }
+
+    const result = promoStore.validate(text);
+    if (result.valid) {
+      sessionStore.patch(ctx.from.id, { appliedPromoCode: result.promo.code });
+      await ctx.reply(
+        [
+          `✅ Промокод <b>${result.promo.code}</b> принят!`,
+          `Скидка: ${result.promo.discountPercent}%`,
+          "",
+          "Скидка будет применена при следующей оплате."
+        ].join("\n"),
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback("📚 Перейти к каталогу", "catalog")],
+            [Markup.button.callback("❌ Сбросить промокод", "promo_clear")]
+          ])
+        }
+      );
+    } else {
+      await ctx.reply(`❌ ${result.reason}`, mainMenu());
+    }
+    return;
+  }
 
   if (session.selectedInstrumentId) {
     sessionStore.patch(ctx.from.id, { ticker: text.toUpperCase() });
