@@ -165,7 +165,10 @@ cp .env.example .env
 ### 3. Заполнить переменные окружения
 
 **Обязательно:**
-- `TELEGRAM_BOT_TOKEN` — токен Telegram бота
+- `TELEGRAM_BOT_TOKEN` — токен Telegram бота (получить у [@BotFather](https://t.me/BotFather))
+
+**Рекомендуемо:**
+- `ADMIN_CHAT_ID` — Telegram chat ID администратора (для `/admin` панели). Узнать ID: [@userinfobot](https://t.me/userinfobot)
 
 **Опционально:**
 - `YOOKASSA_SHOP_ID` — ID магазина ЮKassa (без неё бот работает в бесплатном режиме)
@@ -173,7 +176,6 @@ cp .env.example .env
 - `YOOKASSA_RETURN_URL` — URL возврата после оплаты
 - `OPENAI_API_KEY` — ключ OpenAI (для будущей AI-интеграции)
 - `OPENAI_MODEL` — модель OpenAI (по умолчанию gpt-4o-mini)
-- `ADMIN_CHAT_ID` — Telegram ID администратора (для /admin команды)
 - `PORT` — порт HTTP-сервера (по умолчанию 3000)
 
 ### 4. Запуск в dev-режиме
@@ -186,21 +188,6 @@ npm run dev
 npm run typecheck
 npm run build
 ```
-
----
-
-## Кэширование данных
-
-Все рыночные данные кэшируются для оптимизации:
-
-| Тип данных | TTL |
-|-----------|-----|
-| Котировки | 60 сек |
-| Историч. данные | 5 мин |
-| Новости | 15 мин |
-| Сентимент | 10 мин |
-| Тех. анализ | 2 мин |
-| Исследование конкурентов | 24 часа |
 
 ---
 
@@ -238,6 +225,79 @@ POST /api/stock-categories/:id/recommendations  — добавить акцию
 DELETE /api/stock-categories/:catId/recommendations/:ticker — удалить акцию
 GET  /api/analytics/report           — полный отчёт по всем категориям
 ```
+
+---
+
+## Хранение секретов
+
+Секреты **никогда** не коммитятся в репозиторий. Доступные способы хранения:
+
+| Способ | Где | Назначение |
+|--------|-----|-------------|
+| **GitHub Secrets** | [Settings → Secrets → Actions](../../settings/secrets/actions) | CI/CD, GitHub Actions |
+| **Devin Secrets** | [Devin Settings](https://app.devin.ai/settings/secrets) | Автодоступ в сессиях Devin AI |
+| **`.env` файл** | `services/telegram-bot/.env` (в `.gitignore`) | Локальная разработка |
+
+### Какие секреты нужно добавить
+
+| Secret | Описание | Обязательно | Где взять |
+|--------|----------|---------------|------------|
+| `TELEGRAM_BOT_TOKEN` | Токен бота | Да | [@BotFather](https://t.me/BotFather) |
+| `ADMIN_CHAT_ID` | Chat ID админа | Рекомендуемо | [@userinfobot](https://t.me/userinfobot) |
+| `YOOKASSA_SHOP_ID` | ID магазина | Нет | [yookassa.ru](https://yookassa.ru) |
+| `YOOKASSA_SECRET_KEY` | Ключ ЮKassa | Нет | [yookassa.ru](https://yookassa.ru) |
+| `OPENAI_API_KEY` | Ключ OpenAI | Нет | [platform.openai.com](https://platform.openai.com/api-keys) |
+
+---
+
+## Карта хранения данных
+
+### Файлы данных (рабочие файлы, не коммитятся)
+
+| Файл | Содержимое | Создаётся |
+|------|------------|-------------|
+| `tmp/stock-categories.json` | Категории акций + рекомендации (10 кат, 20 рек) | Автоматически при первом запуске |
+| `tmp/competitor-suggestions.json` | Предложения по улучшению продукта | После `POST /api/competitors/analyze` |
+| `tmp/orders.json` | Заказы пользователей | При создании заказа |
+
+### Конфигурация
+
+| Файл | Назначение |
+|------|-------------|
+| `.env.example` | Шаблон переменных окружения (коммитится) |
+| `.env` | Реальные значения (в `.gitignore`, НЕ коммитится) |
+| `services/telegram-bot/src/config.ts` | Zod-валидация env-переменных |
+| `services/telegram-bot/src/catalog.ts` | Каталог 12 финансовых инструментов |
+
+### Кэш (в памяти, не персистентный)
+
+| Тип данных | TTL | Описание |
+|------------|-----|-------------|
+| Котировки | 60 сек | Yahoo, MOEX, CoinGecko, ЦБ РФ |
+| Историч. данные | 5 мин | Графики, SMA, волатильность |
+| Новости | 15 мин | Investing.com, Bloomberg RSS |
+| Сентимент | 10 мин | X.com (stub) |
+| Тех. анализ | 2 мин | TradingView Scanner |
+| Конкуренты | 24 часа | Отчёт CompetitorResearchService |
+
+### Сессии пользователей (в памяти)
+
+| Хранилище | Назначение |
+|-------------|-------------|
+| `SessionStore` | Текущая сессия пользователя (selectedInstrumentId, ticker, investorProfile) |
+| `OrderStore` | Заказы + персистенция в `tmp/orders.json` |
+| `CompetitorSuggestionStore` | Предложения по улучшению + персистенция в `tmp/competitor-suggestions.json` |
+| `StockCategoryStore` | Категории акций + персистенция в `tmp/stock-categories.json` |
+| `MarketCache` | TTL-кэш всех рыночных данных (только в памяти) |
+
+### Документация
+
+| Файл | Содержимое |
+|------|-------------|
+| [`docs/project-status.md`](docs/project-status.md) | Текущее состояние, что сделано / не сделано, результаты тестов |
+| [`docs/developer-guide.md`](docs/developer-guide.md) | Архитектура, модули, как добавлять агентов/провайдеров |
+| [`docs/roadmap.md`](docs/roadmap.md) | План дальнейшего развития (9 этапов) |
+| `.env.example` | Шаблон переменных окружения |
 
 ---
 

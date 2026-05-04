@@ -139,13 +139,33 @@ cp .env.example .env
 ```
 
 Минимум:
-- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_TOKEN` — токен бота ([@BotFather](https://t.me/BotFather))
+
+Рекомендуемо:
+- `ADMIN_CHAT_ID` — Telegram chat ID администратора ([@userinfobot](https://t.me/userinfobot))
 
 Опционально:
-- `ADMIN_CHAT_ID` — Telegram chat ID администратора (для доступа к `/admin`)
 - `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` — для оплаты
 - `OPENAI_API_KEY` — для будущей AI-интеграции
 - `PORT` — порт HTTP-сервера
+
+### Хранение секретов
+
+| Способ | Назначение | Как настроить |
+|--------|-------------|------------------|
+| `.env` файл | Локальная разработка | `cp .env.example .env` и заполнить |
+| GitHub Secrets | CI/CD | [Settings → Secrets → Actions](https://github.com/asabiru/botanalitic/settings/secrets/actions) |
+| Devin Secrets | Сессии Devin AI | [Devin Settings](https://app.devin.ai/settings/secrets) |
+
+### Карта хранения данных
+
+| Файл / Хранилище | Содержимое | Персистентность |
+|---------------------|------------|------------------|
+| `tmp/stock-categories.json` | Категории акций + рекомендации | Да (JSON) |
+| `tmp/competitor-suggestions.json` | Предложения по улучшению | Да (JSON) |
+| `tmp/orders.json` | Заказы пользователей | Да (JSON) |
+| `MarketCache` | Котировки, новости, теханализ | Нет (в памяти, TTL) |
+| `SessionStore` | Сессии пользователей | Нет (в памяти) |
 
 ### Запуск
 ```bash
