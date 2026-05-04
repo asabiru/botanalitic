@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Market View — AI-аналитика финансовых рынков в Telegram</title>
+  <meta name="description" content="Получите AI-аналитику по валютам, нефти, золоту, акциям и криптовалютам прямо в Telegram. Сценарии, уровни, риски. От 1 490 руб. Мгновенная доставка после оплаты.">
+  <meta name="keywords" content="аналитика финансовых рынков, AI аналитика, прогноз акций, telegram бот трейдинг, анализ рубля, прогноз нефти, аналитика золота, криптовалюты прогноз">
+  <meta property="og:title" content="AI Market View — AI-аналитика финансовых рынков">
+  <meta property="og:description" content="AI-аналитика по валютам, сырью, акциям и крипте. Прямо в Telegram. От 1 490 руб.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AI Market View — AI-аналитика финансовых рынков">
+  <meta name="twitter:description" content="AI-аналитика по валютам, сырью, акциям и крипте в Telegram.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#6366f1',
+            'primary-light': '#818cf8',
+            'primary-dark': '#4f46e5',
+            accent: '#22d3ee',
+            dark: '#0f172a',
+            'dark-card': '#1e293b',
+            'dark-border': '#334155',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-dark text-gray-100 font-sans">
+
+  <!-- Header -->
+  <header class="fixed top-0 w-full z-50 bg-dark/80 backdrop-blur-md border-b border-dark-border">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">📊</span>
+        <span class="text-xl font-bold bg-gradient-to-r from-primary-light to-accent bg-clip-text text-transparent">AI Market View</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-8 text-sm text-gray-400">
+        <a href="#instruments" class="hover:text-white transition">Инструменты</a>
+        <a href="#how-it-works" class="hover:text-white transition">Как это работает</a>
+        <a href="#pricing" class="hover:text-white transition">Тарифы</a>
+        <a href="#demo" class="hover:text-white transition">Пример</a>
+        <a href="#faq" class="hover:text-white transition">FAQ</a>
+      </nav>
+      <a href="https://t.me/AIMarketViewBot" target="_blank" class="bg-primary hover:bg-primary-dark text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+        Открыть бот
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+    <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-dark to-accent/5"></div>
+    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl"></div>
+    <div class="relative z-10 max-w-4xl mx-auto px-4 text-center">
+      <div class="inline-block px-4 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary-light text-sm mb-6">
+        Telegram-бот с AI-аналитикой
+      </div>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+        AI Market View —<br>
+        <span class="bg-gradient-to-r from-primary-light to-accent bg-clip-text text-transparent">аналитика финансовых рынков</span>
+      </h1>
+      <p class="text-lg sm:text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
+        Получите структурированную AI-аналитику по валютам, сырью, акциям, индексам и криптовалютам — прямо в Telegram. От 1 490 руб.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="https://t.me/AIMarketViewBot" target="_blank" class="bg-primary hover:bg-primary-dark text-white px-8 py-3.5 rounded-xl text-lg font-semibold transition shadow-lg shadow-primary/25">
+          Попробовать бот →
+        </a>
+        <a href="#demo" class="border border-dark-border hover:border-gray-500 text-gray-300 px-8 py-3.5 rounded-xl text-lg font-medium transition">
+          Смотреть пример
+        </a>
+      </div>
+      <div class="mt-12 flex flex-wrap justify-center gap-8 text-gray-500 text-sm">
+        <div class="flex items-center gap-2"><span class="text-accent">●</span> 12 категорий инструментов</div>
+        <div class="flex items-center gap-2"><span class="text-accent">●</span> Мгновенная доставка</div>
+        <div class="flex items-center gap-2"><span class="text-accent">●</span> Оплата через ЮKassa</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Instruments -->
+  <section id="instruments" class="py-20 sm:py-28">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4">Что мы анализируем</h2>
+        <p class="text-gray-400 text-lg max-w-2xl mx-auto">12 категорий финансовых инструментов — от валют до криптовалют</p>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+        <!-- Instrument Cards -->
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🇨🇳</div>
+          <h3 class="font-semibold mb-1">Юань/Рубль</h3>
+          <p class="text-gray-500 text-sm">Спот, фьючерсы, сценарии</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 490 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">💵</div>
+          <h3 class="font-semibold mb-1">Доллар/Рубль</h3>
+          <p class="text-gray-500 text-sm">Курс, волатильность, макро</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 490 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🛢</div>
+          <h3 class="font-semibold mb-1">Нефть</h3>
+          <p class="text-gray-500 text-sm">Brent/WTI, баланс, теханализ</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 790 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🔵</div>
+          <h3 class="font-semibold mb-1">Газ</h3>
+          <p class="text-gray-500 text-sm">Фьючерсы, сезонность, запасы</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 790 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🥇</div>
+          <h3 class="font-semibold mb-1">Золото</h3>
+          <p class="text-gray-500 text-sm">Защитный актив, техуровни</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 990 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🥈</div>
+          <h3 class="font-semibold mb-1">Серебро</h3>
+          <p class="text-gray-500 text-sm">Промышленный + защитный спрос</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 990 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🇺🇸</div>
+          <h3 class="font-semibold mb-1">Акции США</h3>
+          <p class="text-gray-500 text-sm">Любой тикер: AAPL, TSLA, NVDA...</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">2 490 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">📈</div>
+          <h3 class="font-semibold mb-1">Акции РФ</h3>
+          <p class="text-gray-500 text-sm">Любой тикер: SBER, LKOH, YNDX...</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 990 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🇷🇺</div>
+          <h3 class="font-semibold mb-1">Индекс Мосбиржи</h3>
+          <p class="text-gray-500 text-sm">Общий обзор рынка РФ</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 790 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🇷🇺</div>
+          <h3 class="font-semibold mb-1">Индекс RGBI</h3>
+          <p class="text-gray-500 text-sm">ОФЗ, ставка, инфляция</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 790 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">₿</div>
+          <h3 class="font-semibold mb-1">Криптовалюты</h3>
+          <p class="text-gray-500 text-sm">Любой тикер: BTC, ETH, SOL...</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">2 490 ₽</div>
+        </div>
+        <div class="bg-dark-card border border-dark-border rounded-xl p-5 hover:border-primary/50 transition group">
+          <div class="text-3xl mb-3">🇪🇺</div>
+          <h3 class="font-semibold mb-1">Евро/Доллар</h3>
+          <p class="text-gray-500 text-sm">Макро, ставки, техкартина</p>
+          <div class="text-primary-light text-sm mt-2 font-medium">1 490 ₽</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it Works -->
+  <section id="how-it-works" class="py-20 sm:py-28 bg-dark-card/50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4">Как это работает</h2>
+        <p class="text-gray-400 text-lg">4 простых шага до AI-аналитики</p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div class="text-center">
+          <div class="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto mb-5">
+            <span class="text-2xl font-bold text-primary-light">1</span>
+          </div>
+          <h3 class="font-semibold text-lg mb-2">Выберите инструмент</h3>
+          <p class="text-gray-400 text-sm">Откройте бот и выберите категорию из каталога: валюты, сырьё, акции, индексы или крипто</p>
+        </div>
+        <div class="text-center">
+          <div class="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto mb-5">
+            <span class="text-2xl font-bold text-primary-light">2</span>
+          </div>
+          <h3 class="font-semibold text-lg mb-2">Введите тикер</h3>
+          <p class="text-gray-400 text-sm">Для акций и крипто укажите конкретный тикер (SBER, AAPL, BTC). Для валют и сырья — автоматически</p>
+        </div>
+        <div class="text-center">
+          <div class="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto mb-5">
+            <span class="text-2xl font-bold text-primary-light">3</span>
+          </div>
+          <h3 class="font-semibold text-lg mb-2">Оплатите</h3>
+          <p class="text-gray-400 text-sm">Безопасная оплата через ЮKassa — картой, СБП или другими способами</p>
+        </div>
+        <div class="text-center">
+          <div class="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto mb-5">
+            <span class="text-2xl font-bold text-primary-light">4</span>
+          </div>
+          <h3 class="font-semibold text-lg mb-2">Получите аналитику</h3>
+          <p class="text-gray-400 text-sm">AI-отчёт приходит прямо в Telegram мгновенно после подтверждения оплаты</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="py-20 sm:py-28">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4">Тарифы</h2>
+        <p class="text-gray-400 text-lg">Прозрачные цены. Без подписок — платите только за нужный отчёт</p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Tier 1 -->
+        <div class="bg-dark-card border border-dark-border rounded-2xl p-6 hover:border-primary/50 transition">
+          <div class="text-sm text-gray-500 mb-2">Валюты</div>
+          <div class="text-3xl font-bold mb-1">1 490 <span class="text-lg text-gray-500">₽</span></div>
+          <div class="text-gray-500 text-sm mb-5">за один отчёт</div>
+          <ul class="space-y-2.5 text-sm text-gray-400 mb-6">
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> USD/RUB, CNY/RUB, EUR/USD</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Сценарии и уровни</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Макро-факторы</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Мгновенная доставка</li>
+          </ul>
+          <a href="https://t.me/AIMarketViewBot" target="_blank" class="block text-center bg-primary/10 hover:bg-primary/20 text-primary-light py-2.5 rounded-lg text-sm font-medium transition">
+            Получить аналитику
+          </a>
+        </div>
+        <!-- Tier 2 -->
+        <div class="bg-dark-card border border-dark-border rounded-2xl p-6 hover:border-primary/50 transition">
+          <div class="text-sm text-gray-500 mb-2">Сырьё и индексы</div>
+          <div class="text-3xl font-bold mb-1">1 790 <span class="text-lg text-gray-500">₽</span></div>
+          <div class="text-gray-500 text-sm mb-5">за один отчёт</div>
+          <ul class="space-y-2.5 text-sm text-gray-400 mb-6">
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Нефть, газ</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Мосбиржа, RGBI</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Фундаментальный анализ</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Мгновенная доставка</li>
+          </ul>
+          <a href="https://t.me/AIMarketViewBot" target="_blank" class="block text-center bg-primary/10 hover:bg-primary/20 text-primary-light py-2.5 rounded-lg text-sm font-medium transition">
+            Получить аналитику
+          </a>
+        </div>
+        <!-- Tier 3 -->
+        <div class="bg-dark-card border border-primary/50 rounded-2xl p-6 relative">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs px-3 py-1 rounded-full font-medium">Популярный</div>
+          <div class="text-sm text-gray-500 mb-2">Драгметаллы и акции РФ</div>
+          <div class="text-3xl font-bold mb-1">1 990 <span class="text-lg text-gray-500">₽</span></div>
+          <div class="text-gray-500 text-sm mb-5">за один отчёт</div>
+          <ul class="space-y-2.5 text-sm text-gray-400 mb-6">
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Золото, серебро</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Любой тикер акций РФ</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Дивиденды и мультипликаторы</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Мгновенная доставка</li>
+          </ul>
+          <a href="https://t.me/AIMarketViewBot" target="_blank" class="block text-center bg-primary hover:bg-primary-dark text-white py-2.5 rounded-lg text-sm font-medium transition">
+            Получить аналитику
+          </a>
+        </div>
+        <!-- Tier 4 -->
+        <div class="bg-dark-card border border-dark-border rounded-2xl p-6 hover:border-primary/50 transition">
+          <div class="text-sm text-gray-500 mb-2">Акции США и крипто</div>
+          <div class="text-3xl font-bold mb-1">2 490 <span class="text-lg text-gray-500">₽</span></div>
+          <div class="text-gray-500 text-sm mb-5">за один отчёт</div>
+          <ul class="space-y-2.5 text-sm text-gray-400 mb-6">
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Любой тикер акций США</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Любая криптовалюта</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Глубокий анализ и риски</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">&#10003;</span> Мгновенная доставка</li>
+          </ul>
+          <a href="https://t.me/AIMarketViewBot" target="_blank" class="block text-center bg-primary/10 hover:bg-primary/20 text-primary-light py-2.5 rounded-lg text-sm font-medium transition">
+            Получить аналитику
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Demo -->
+  <section id="demo" class="py-20 sm:py-28 bg-dark-card/50">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4">Пример аналитики</h2>
+        <p class="text-gray-400 text-lg">Так выглядит AI-отчёт по золоту (XAU/USD)</p>
+      </div>
+      <div class="bg-dark border border-dark-border rounded-2xl p-6 sm:p-8">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="text-2xl">🥇</span>
+          <div>
+            <h3 class="font-bold text-lg">Золото (XAU/USD)</h3>
+            <span class="text-sm text-gray-500">AI Market View Report</span>
+          </div>
+        </div>
+        <div class="space-y-5 text-sm text-gray-300 leading-relaxed">
+          <div>
+            <h4 class="text-white font-semibold mb-2">Текущая ситуация</h4>
+            <p>Золото торгуется вблизи ключевого уровня сопротивления. Реальная доходность US Treasuries остаётся сдерживающим фактором, но геополитическая неопределённость и спрос центральных банков поддерживают котировки.</p>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div class="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
+              <h4 class="text-green-400 font-semibold mb-2">Бычий сценарий (~55%)</h4>
+              <ul class="space-y-1.5 text-gray-400">
+                <li>&#8226; Пробой и закрепление выше сопротивления</li>
+                <li>&#8226; Смягчение риторики ФРС</li>
+                <li>&#8226; Рост геополитических рисков</li>
+                <li>&#8226; Цель: +3-5% от текущих</li>
+              </ul>
+            </div>
+            <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+              <h4 class="text-red-400 font-semibold mb-2">Медвежий сценарий (~45%)</h4>
+              <ul class="space-y-1.5 text-gray-400">
+                <li>&#8226; Откат к ближайшей поддержке</li>
+                <li>&#8226; Ястребиная риторика ФРС</li>
+                <li>&#8226; Рост реальных ставок, укрепление DXY</li>
+                <li>&#8226; Риск: -2-4% от текущих</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-white font-semibold mb-2">Риск-факторы</h4>
+            <p>Решение ФРС по ставке, данные по инфляции CPI, геополитика (Ближний Восток, торговые войны).</p>
+          </div>
+          <div class="bg-primary/5 border border-primary/20 rounded-xl p-4">
+            <h4 class="text-primary-light font-semibold mb-1">Вывод</h4>
+            <p class="text-gray-400">Золото сохраняет бычий тренд в среднесрочной перспективе. Рекомендуется следить за уровнями и реакцией на макро-данные.</p>
+          </div>
+        </div>
+        <div class="mt-6 pt-4 border-t border-dark-border text-xs text-gray-600">
+          Данный пример носит ознакомительный характер и не является индивидуальной инвестиционной рекомендацией.
+        </div>
+      </div>
+      <div class="text-center mt-8">
+        <a href="https://t.me/AIMarketViewBot" target="_blank" class="inline-block bg-primary hover:bg-primary-dark text-white px-8 py-3.5 rounded-xl text-lg font-semibold transition shadow-lg shadow-primary/25">
+          Получить такой отчёт →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="py-20 sm:py-28">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4">Частые вопросы</h2>
+      </div>
+      <div class="space-y-4">
+        <details class="bg-dark-card border border-dark-border rounded-xl group" open>
+          <summary class="p-5 cursor-pointer flex items-center justify-between font-medium hover:text-primary-light transition">
+            Что я получу после оплаты?
+            <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-gray-400 text-sm">
+            Сразу после подтверждения оплаты вы получите AI-аналитику по выбранному инструменту прямо в чат с ботом. Отчёт включает: текущую ситуацию на рынке, бычий и медвежий сценарии, ключевые уровни, драйверы, риск-факторы и выводы.
+          </div>
+        </details>
+        <details class="bg-dark-card border border-dark-border rounded-xl group">
+          <summary class="p-5 cursor-pointer flex items-center justify-between font-medium hover:text-primary-light transition">
+            Как быстро приходит аналитика?
+            <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-gray-400 text-sm">
+            Мгновенно. Как только ЮKassa подтверждает оплату, бот автоматически отправляет AI-отчёт в чат. Обычно это занимает от нескольких секунд до пары минут.
+          </div>
+        </details>
+        <details class="bg-dark-card border border-dark-border rounded-xl group">
+          <summary class="p-5 cursor-pointer flex items-center justify-between font-medium hover:text-primary-light transition">
+            Какие способы оплаты доступны?
+            <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-gray-400 text-sm">
+            Оплата проходит через ЮKassa — можно оплатить банковской картой (Visa, Mastercard, МИР), через СБП, электронные кошельки и другие способы, доступные в ЮKassa.
+          </div>
+        </details>
+        <details class="bg-dark-card border border-dark-border rounded-xl group">
+          <summary class="p-5 cursor-pointer flex items-center justify-between font-medium hover:text-primary-light transition">
+            Можно ли попробовать бесплатно?
+            <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-gray-400 text-sm">
+            Да! В боте есть функция демо-анализа — вы можете увидеть пример аналитики бесплатно перед покупкой. Также используйте промокод <strong>LAUNCH100</strong> для скидки 30% на первую покупку (для первых 100 клиентов).
+          </div>
+        </details>
+        <details class="bg-dark-card border border-dark-border rounded-xl group">
+          <summary class="p-5 cursor-pointer flex items-center justify-between font-medium hover:text-primary-light transition">
+            Это инвестиционная рекомендация?
+            <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-gray-400 text-sm">
+            Нет. Все аналитические материалы носят исключительно ознакомительный характер и <strong>не являются индивидуальной инвестиционной рекомендацией</strong>. Мы не гарантируем доходность. Решения о сделках вы принимаете самостоятельно, учитывая собственные цели и риск-профиль.
+          </div>
+        </details>
+        <details class="bg-dark-card border border-dark-border rounded-xl group">
+          <summary class="p-5 cursor-pointer flex items-center justify-between font-medium hover:text-primary-light transition">
+            Как работает реферальная программа?
+            <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-gray-400 text-sm">
+            Поделитесь реферальным кодом с другом. Когда друг совершит первую покупку по вашему коду, вы оба получите скидку 20% на следующий отчёт. Количество рефералов не ограничено.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-20 sm:py-28 bg-dark-card/50">
+    <div class="max-w-3xl mx-auto px-4 text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-4">Готовы получить AI-аналитику?</h2>
+      <p class="text-gray-400 text-lg mb-8">Откройте бот, выберите инструмент и получите отчёт за минуты</p>
+      <a href="https://t.me/AIMarketViewBot" target="_blank" class="inline-block bg-primary hover:bg-primary-dark text-white px-8 py-3.5 rounded-xl text-lg font-semibold transition shadow-lg shadow-primary/25">
+        Открыть @AIMarketViewBot →
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-dark-border py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid sm:grid-cols-3 gap-8 mb-8">
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xl">📊</span>
+            <span class="font-bold bg-gradient-to-r from-primary-light to-accent bg-clip-text text-transparent">AI Market View</span>
+          </div>
+          <p class="text-gray-500 text-sm">AI-аналитика финансовых рынков в Telegram</p>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-3 text-sm">Навигация</h4>
+          <ul class="space-y-2 text-sm text-gray-500">
+            <li><a href="#instruments" class="hover:text-gray-300 transition">Инструменты</a></li>
+            <li><a href="#how-it-works" class="hover:text-gray-300 transition">Как это работает</a></li>
+            <li><a href="#pricing" class="hover:text-gray-300 transition">Тарифы</a></li>
+            <li><a href="#faq" class="hover:text-gray-300 transition">FAQ</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-3 text-sm">Контакты</h4>
+          <ul class="space-y-2 text-sm text-gray-500">
+            <li><a href="https://t.me/AIMarketViewBot" target="_blank" class="hover:text-gray-300 transition">Telegram-бот</a></li>
+            <li><a href="https://github.com/asabiru/botanalitic" target="_blank" class="hover:text-gray-300 transition">GitHub</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="pt-8 border-t border-dark-border">
+        <div class="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-4 mb-6">
+          <p class="text-yellow-500/80 text-xs leading-relaxed">
+            <strong>ВАЖНО:</strong> Информация, представленная на данном сайте и в Telegram-боте AI Market View, носит исключительно ознакомительный характер и не является индивидуальной инвестиционной рекомендацией. Мы не гарантируем доходность инвестиций. Торговля на финансовых рынках связана с рисками потери капитала. Перед принятием инвестиционных решений рекомендуем проконсультироваться с квалифицированным финансовым советником. Прошлая динамика финансовых инструментов не гарантирует будущих результатов.
+          </p>
+        </div>
+        <p class="text-gray-600 text-xs text-center">&copy; 2025 AI Market View. Все права защищены.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
