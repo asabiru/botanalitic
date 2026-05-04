@@ -11,4 +11,6 @@ export interface IOrderStore {
   getById(orderId: string): OrderRecord | undefined | Promise<OrderRecord | undefined>;
   getByPaymentId(paymentId: string): OrderRecord | undefined | Promise<OrderRecord | undefined>;
   listByTelegramUserId(telegramUserId: number): OrderRecord[] | Promise<OrderRecord[]>;
+  listAll(): OrderRecord[] | Promise<OrderRecord[]>;
+  uniqueUserIds(): number[] | Promise<number[]>;
 }

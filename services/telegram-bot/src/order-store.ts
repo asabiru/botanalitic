@@ -102,12 +102,12 @@ export class OrderStore {
     return [...this.orders.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  uniqueUserIds(): Set<number> {
+  uniqueUserIds(): number[] {
     const ids = new Set<number>();
     for (const order of this.orders.values()) {
       ids.add(order.telegramUserId);
     }
-    return ids;
+    return [...ids];
   }
 
   private load() {

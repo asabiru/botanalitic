@@ -22,7 +22,8 @@ export async function handleAdminMenu(ctx: any): Promise<void> {
 
 export async function handleOrders(ctx: any): Promise<void> {
   auditLog("orders_list", ctx.from.id);
-  const orders = orderStore.listAll().slice(0, 20);
+  const allOrders = await orderStore.listAll();
+  const orders = allOrders.slice(0, 20);
 
   if (orders.length === 0) {
     await ctx.reply("Заказов пока нет.");
@@ -30,7 +31,7 @@ export async function handleOrders(ctx: any): Promise<void> {
   }
 
   const lines = orders.map(
-    (o) =>
+    (o: any) =>
       `#${o.id.slice(0, 8)} | ${o.status} | ${o.amountRub} ₽ | ${o.createdAt.slice(0, 10)}`
   );
 
@@ -39,7 +40,7 @@ export async function handleOrders(ctx: any): Promise<void> {
   });
 }
 
-function extractArg(text: string, command: string): string {
+function extractArg(text: string, _command: string): string {
   const idx = text.indexOf(" ");
   if (idx === -1) return "";
   return text.slice(idx + 1).trim();
@@ -56,7 +57,7 @@ export async function handleOrderDetail(ctx: any): Promise<void> {
 
   auditLog("order_detail", ctx.from.id, `orderId=${orderId}`);
 
-  const order = orderStore.getById(orderId);
+  const order = await orderStore.getById(orderId);
 
   if (!order) {
     await ctx.reply(`Заказ ${orderId} не найден.`);
@@ -83,11 +84,11 @@ export async function handleOrderDetail(ctx: any): Promise<void> {
 export async function handleStats(ctx: any): Promise<void> {
   auditLog("stats", ctx.from.id);
 
-  const all = orderStore.listAll();
-  const paid = all.filter((o) => o.status === "paid" || o.status === "delivered");
-  const totalRevenue = paid.reduce((sum, o) => sum + o.amountRub, 0);
+  const all = await orderStore.listAll();
+  const paid = all.filter((o: any) => o.status === "paid" || o.status === "delivered");
+  const totalRevenue = paid.reduce((sum: number, o: any) => sum + o.amountRub, 0);
   const avgCheck = paid.length > 0 ? Math.round(totalRevenue / paid.length) : 0;
-  const uniqueUsers = orderStore.uniqueUserIds().size;
+  const uniqueUsers = await orderStore.uniqueUserIds();
 
   await ctx.reply(
     [
@@ -97,7 +98,7 @@ export async function handleStats(ctx: any): Promise<void> {
       `Оплаченных: ${paid.length}`,
       `Выручка: ${totalRevenue} ₽`,
       `Средний чек: ${avgCheck} ₽`,
-      `Уникальных пользователей: ${uniqueUsers}`
+      `Уникальных пользователей: ${uniqueUsers.length}`
     ].join("\n"),
     { parse_mode: "HTML" }
   );
@@ -105,8 +106,8 @@ export async function handleStats(ctx: any): Promise<void> {
 
 export async function handleUsers(ctx: any): Promise<void> {
   auditLog("users", ctx.from.id);
-  const count = orderStore.uniqueUserIds().size;
-  await ctx.reply(`Уникальных пользователей: ${count}`);
+  const userIds = await orderStore.uniqueUserIds();
+  await ctx.reply(`Уникальных пользователей: ${userIds.length}`);
 }
 
 export async function handleResend(ctx: any): Promise<void> {
@@ -120,7 +121,7 @@ export async function handleResend(ctx: any): Promise<void> {
 
   auditLog("resend", ctx.from.id, `orderId=${orderId}`);
 
-  const order = orderStore.getById(orderId);
+  const order = await orderStore.getById(orderId);
 
   if (!order) {
     await ctx.reply(`Заказ ${orderId} не найден.`);
@@ -145,11 +146,13 @@ export async function handleResend(ctx: any): Promise<void> {
       order.telegramUserId,
       "📨 Повторная отправка аналитики по вашему заказу:"
     );
-    await bot.telegram.sendMessage(order.telegramUserId, analysis, {
-      parse_mode: "HTML"
-    });
+    for (const chunk of analysis) {
+      await bot.telegram.sendMessage(order.telegramUserId, chunk, {
+        parse_mode: "HTML"
+      });
+    }
 
-    orderStore.update(order.id, { status: "delivered" });
+    await orderStore.update(order.id, { status: "delivered" });
 
     await ctx.reply(`Аналитика по заказу ${orderId} отправлена повторно.`);
   } catch (error) {
@@ -169,7 +172,7 @@ export async function handleBroadcast(ctx: any): Promise<void> {
 
   auditLog("broadcast", ctx.from.id, `message=${message.slice(0, 100)}`);
 
-  const userIds = orderStore.uniqueUserIds();
+  const userIds = await orderStore.uniqueUserIds();
   let sent = 0;
   let failed = 0;
 

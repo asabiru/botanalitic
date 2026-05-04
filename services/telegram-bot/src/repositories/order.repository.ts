@@ -110,4 +110,19 @@ export class PrismaOrderRepository {
     });
     return orders.map(toOrderRecord);
   }
+
+  async listAll(): Promise<OrderRecord[]> {
+    const orders = await this.prisma.order.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return orders.map(toOrderRecord);
+  }
+
+  async uniqueUserIds(): Promise<number[]> {
+    const result = await this.prisma.order.findMany({
+      select: { telegramUserId: true },
+      distinct: ["telegramUserId"],
+    });
+    return result.map((r) => Number(r.telegramUserId));
+  }
 }

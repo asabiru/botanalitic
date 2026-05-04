@@ -92,7 +92,7 @@ export function createServer() {
       }
 
       // Only skip re-processing for fully delivered orders
-      const existingOrder = orderStore.getByPaymentId(paymentId);
+      const existingOrder = await orderStore.getByPaymentId(paymentId);
       if (
         existingOrder &&
         existingOrder.status === "delivered"
@@ -112,10 +112,10 @@ export function createServer() {
       let delivered = false;
 
       try {
-        let order = orderStore.getByPaymentId(paymentId);
+        let order = await orderStore.getByPaymentId(paymentId);
 
         if (!order && event.object.metadata?.orderId) {
-          order = orderStore.getById(event.object.metadata.orderId);
+          order = await orderStore.getById(event.object.metadata.orderId);
         }
 
         if (!order) {
@@ -125,7 +125,7 @@ export function createServer() {
           return;
         }
 
-        orderStore.update(order.id, { status: "paid", paymentId });
+        await orderStore.update(order.id, { status: "paid", paymentId });
 
         const instrument = findInstrumentById(order.instrumentId);
 
@@ -175,7 +175,7 @@ export function createServer() {
           `telegram_send:${paymentId}`
         );
 
-        orderStore.update(order.id, { status: "delivered" });
+        await orderStore.update(order.id, { status: "delivered" });
         delivered = true;
 
         logger.info("Payment processed successfully", {
@@ -204,7 +204,7 @@ export function createServer() {
     }
   );
 
-  app.get("/orders/:telegramUserId", (req, res) => {
+  app.get("/orders/:telegramUserId", async (req, res) => {
     const telegramUserId = Number(req.params.telegramUserId);
 
     if (Number.isNaN(telegramUserId)) {
@@ -214,7 +214,7 @@ export function createServer() {
 
     res.json({
       ok: true,
-      orders: orderStore.listByTelegramUserId(telegramUserId)
+      orders: await orderStore.listByTelegramUserId(telegramUserId)
     });
   });
 
@@ -233,13 +233,14 @@ export function createServer() {
     next();
   }
 
-  app.get("/admin/stats", adminApiGuard, (_req, res) => {
+  app.get("/admin/stats", adminApiGuard, async (_req, res) => {
     auditLog("http_stats", "api");
-    const all = orderStore.listAll();
-    const paid = all.filter((o) => o.status === "paid" || o.status === "delivered");
-    const totalRevenue = paid.reduce((sum, o) => sum + o.amountRub, 0);
+    const all = await orderStore.listAll();
+    const paid = all.filter((o: any) => o.status === "paid" || o.status === "delivered");
+    const totalRevenue = paid.reduce((sum: number, o: any) => sum + o.amountRub, 0);
     const avgCheck = paid.length > 0 ? Math.round(totalRevenue / paid.length) : 0;
-    const uniqueUsers = orderStore.uniqueUserIds().size;
+    const userIds = await orderStore.uniqueUserIds();
+    const uniqueUsers = userIds.length;
 
     res.json({
       ok: true,
@@ -253,14 +254,14 @@ export function createServer() {
     });
   });
 
-  app.get("/admin/orders", adminApiGuard, (req, res) => {
+  app.get("/admin/orders", adminApiGuard, async (req, res) => {
     auditLog("http_orders", "api");
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const status = req.query.status as string | undefined;
-    let all = orderStore.listAll();
+    let all = await orderStore.listAll();
     if (status) {
-      all = all.filter((o) => o.status === status);
+      all = all.filter((o: any) => o.status === status);
     }
     const start = (page - 1) * limit;
     const orders = all.slice(start, start + limit);
@@ -274,10 +275,10 @@ export function createServer() {
     });
   });
 
-  app.get("/admin/orders/:id", adminApiGuard, (req, res) => {
+  app.get("/admin/orders/:id", adminApiGuard, async (req, res) => {
     const orderId = req.params.id as string;
     auditLog("http_order_detail", "api", `orderId=${orderId}`);
-    const order = orderStore.getById(orderId);
+    const order = await orderStore.getById(orderId);
 
     if (!order) {
       res.status(404).json({ ok: false, error: "order_not_found" });
@@ -291,7 +292,7 @@ export function createServer() {
     const orderId = req.params.id as string;
     auditLog("http_resend", "api", `orderId=${orderId}`);
 
-    const order = orderStore.getById(orderId);
+    const order = await orderStore.getById(orderId);
 
     if (!order) {
       res.status(404).json({ ok: false, error: "order_not_found" });
@@ -316,11 +317,13 @@ export function createServer() {
         order.telegramUserId,
         "📨 Повторная отправка аналитики по вашему заказу:"
       );
-      await bot.telegram.sendMessage(order.telegramUserId, analysis, {
-        parse_mode: "HTML"
-      });
+      for (const chunk of analysis) {
+        await bot.telegram.sendMessage(order.telegramUserId, chunk, {
+          parse_mode: "HTML"
+        });
+      }
 
-      orderStore.update(order.id, { status: "delivered" });
+      await orderStore.update(order.id, { status: "delivered" });
 
       res.json({ ok: true, message: "analysis_resent" });
     } catch (error) {

@@ -5,12 +5,13 @@ import { AiAnalysisService } from "../ai-analysis.js";
 
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 const testOrderStore = new OrderStore();
-const testAiService = new AiAnalysisService();
+const testAiService = new AiAnalysisService(null, "gpt-4o-mini", 2048);
 
 vi.mock("../app-context.js", () => ({
   bot: { telegram: { sendMessage: mockSendMessage } },
   orderStore: testOrderStore,
-  aiAnalysisService: testAiService
+  aiAnalysisService: testAiService,
+  marketDataService: { getMarketContext: vi.fn().mockResolvedValue(undefined) }
 }));
 
 vi.mock("node:fs", () => ({
