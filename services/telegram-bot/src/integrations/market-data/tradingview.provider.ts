@@ -49,23 +49,35 @@ export class TradingViewProvider {
     const cached = this.cache.get<TechnicalAnalysisResult>(cacheKey);
     if (cached) return cached;
 
-    const fullSymbol = exchange ? `${exchange}:${symbol}` : symbol;
-
     // Try the region-specific scanner first; if that returns nothing,
     // fall back to the global scanner.
     const region = this.regionFor(exchange);
-    const candidates = region === "global"
-      ? ["global"]
-      : [region, "global"];
+    const candidates: Array<{ region: string; ticker: string }> =
+      region === "global"
+        ? [{ region: "global", ticker: this.tickerFor("global", exchange, symbol) }]
+        : [
+            { region, ticker: this.tickerFor(region, exchange, symbol) },
+            { region: "global", ticker: this.tickerFor("global", exchange, symbol) },
+          ];
 
-    for (const r of candidates) {
-      const result = await this.scan(fullSymbol, symbol, r);
+    for (const c of candidates) {
+      const result = await this.scan(c.ticker, symbol, c.region);
       if (result) {
         this.cache.set(cacheKey, result, MarketCache.ttlFor("technical"));
         return result;
       }
     }
     return null;
+  }
+
+  /**
+   * TradingView's russia/scan endpoint expects `RUS:SBER`, not `MOEX:SBER` —
+   * even though tickers are listed on MOEX. Other regions accept the standard
+   * `EXCHANGE:SYMBOL` form. We translate accordingly.
+   */
+  private tickerFor(region: string, exchange: string | undefined, symbol: string): string {
+    if (region === "russia") return `RUS:${symbol}`;
+    return exchange ? `${exchange}:${symbol}` : symbol;
   }
 
   private regionFor(exchange?: string): string {
