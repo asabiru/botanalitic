@@ -113,6 +113,22 @@
 - error handling: при ошибке OpenAI возвращается demo-ответ
 - disclaimer в каждом ответе
 
+### Market Data Integrations
+Реализовано:
+- модульная архитектура провайдеров данных (`src/integrations/`)
+- **Yahoo Finance** — акции США, commodities (нефть, газ, золото, серебро), FX (EUR/USD)
+- **MOEX ISS** — акции РФ (TQBR), индекс Мосбиржи (IMOEX), индекс RGBI
+- **CoinGecko** — криптовалюты (бесплатный API)
+- **ЦБ РФ** — официальные курсы валют (USD/RUB, CNY/RUB, EUR/RUB)
+- **TradingView** — техническая сводка (strong_buy/buy/neutral/sell/strong_sell)
+- **Investing.com RSS** — новости по 4 категориям (общие, форекс, commodities, акции)
+- **Bloomberg RSS** — рыночные новости
+- **X.com sentiment** — интерфейс готов, заглушка до получения API ключа
+- in-memory кэш с TTL (котировки 60с, история 5мин, новости 15мин)
+- маппинг всех инструментов каталога на провайдеры
+- сервис агрегации `MarketDataService` с методом `getMarketContext()`
+- интеграция реальных данных в демо-аналитику
+
 ### Документация
 Подготовлено:
 - `README.md`
@@ -186,12 +202,15 @@
 - cost tracking
 
 ### Priority 4 — Data integrations
-Сделать:
-- market data provider layer
-- news ingestion layer
-- social sentiment layer
-- legal-safe integration strategy
-- abstraction над провайдерами
+Выполнено:
+- ✅ market data provider layer (Yahoo Finance, MOEX ISS, CoinGecko, CBR)
+- ✅ news ingestion layer (RSS: Investing.com, Bloomberg)
+- ✅ social sentiment layer (X.com — интерфейс готов, заглушка)
+- ✅ legal-safe integration strategy (только бесплатные API без ключей)
+- ✅ abstraction над провайдерами (MarketDataProvider interface, фабрика)
+- ✅ TradingView technical analysis
+- ✅ in-memory cache с TTL
+- ✅ instrument mapper
 
 ### Priority 5 — Operations
 Сделать:

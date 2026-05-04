@@ -8,6 +8,7 @@ import { YooKassaService } from "./yookassa.js";
 import { OrderStore } from "./order-store.js";
 import { PrismaOrderRepository, PrismaUserRepository } from "./repositories/index.js";
 import type { IOrderStore } from "./order-store-interface.js";
+import { MarketDataService } from "./integrations/market-data.service.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -33,4 +34,5 @@ export const aiAnalysisService = new AiAnalysisService(
   config.OPENAI_MAX_TOKENS
 );
 export const yooKassaService = new YooKassaService();
+export const marketDataService = new MarketDataService();
 export const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);

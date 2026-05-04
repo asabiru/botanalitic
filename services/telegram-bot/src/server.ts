@@ -1,5 +1,5 @@
 import express from "express";
-import { bot, orderStore, aiAnalysisService } from "./app-context.js";
+import { bot, orderStore, aiAnalysisService, marketDataService } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 import { config } from "./config.js";
 import { logger } from "./utils/logger.js";
@@ -139,10 +139,18 @@ export function createServer() {
           return;
         }
 
+        let marketContext;
+        try {
+          marketContext = await marketDataService.getMarketContext(instrument.id, order.ticker);
+        } catch (err) {
+          logger.warn("Failed to fetch market context", { error: String(err) });
+        }
+
         const analysis = await aiAnalysisService.generateAnalysis({
           instrument,
           ticker: order.ticker,
-          investorProfile: order.investorProfile
+          investorProfile: order.investorProfile,
+          marketContext
         });
 
         // Send confirmation only on first processing (not on YooKassa retry)

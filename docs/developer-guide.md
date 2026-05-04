@@ -464,24 +464,78 @@ src/
 
 ## 11. Как подключить сбор данных
 
-Важно: некоторые источники имеют ограничения по лицензии, scraping и условиям использования.
+### Текущая реализация
 
-Безопасный путь:
-- использовать официальные API там, где они есть
-- не нарушать ToS сайтов
-- разделить:
-  - market data provider
-  - news provider
-  - social sentiment provider
+Слой интеграции с рыночными данными уже реализован в `src/integrations/`:
 
-Рекомендуемая структура:
 ```text
-src/
-  integrations/
-    news/
-    market-data/
-    sentiment/
+src/integrations/
+  market-data/
+    provider.interface.ts    — общий интерфейс MarketDataProvider
+    yahoo-finance.provider.ts — Yahoo Finance (акции США, commodities, FX)
+    moex.provider.ts          — MOEX ISS (акции РФ, IMOEX, RGBI)
+    coingecko.provider.ts     — CoinGecko (криптовалюты)
+    cbr.provider.ts           — ЦБ РФ (курсы валют)
+    tradingview.provider.ts   — TradingView (технический анализ)
+    index.ts                  — фабрика провайдеров
+  news/
+    news.interface.ts         — интерфейс NewsProvider
+    rss-news.provider.ts      — общий RSS-парсер
+    investing-rss.provider.ts — Investing.com (4 RSS-фида)
+    bloomberg-rss.provider.ts — Bloomberg RSS
+  sentiment/
+    x-sentiment.provider.ts   — X.com (заглушка, нужен API ключ)
+  cache/
+    market-cache.ts           — in-memory кэш с TTL
+  instrument-mapper.ts        — маппинг instrumentId → провайдер + символ
+  market-data.service.ts      — агрегирующий сервис MarketDataService
 ```
+
+### Маппинг инструментов
+
+Файл `instrument-mapper.ts` связывает `instrumentId` из `catalog.ts` с провайдерами:
+
+| instrumentId | Провайдер | Символ по умолчанию |
+|---|---|---|
+| cny-rub | CBR | CNY |
+| usd-rub | CBR | USD |
+| oil | Yahoo Finance | BZ=F |
+| gas | Yahoo Finance | NG=F |
+| gold | Yahoo Finance | GC=F |
+| silver | Yahoo Finance | SI=F |
+| us-stocks | Yahoo Finance | (тикер клиента) |
+| ru-stocks | MOEX | (тикер клиента) |
+| imoex | MOEX | IMOEX |
+| rgbi | MOEX | RGBITR |
+| crypto | CoinGecko | (тикер клиента) |
+| eur-usd | Yahoo Finance | EURUSD=X |
+
+### Как добавить нового провайдера
+
+1. Создай файл в `src/integrations/market-data/` реализующий `MarketDataProvider`
+2. Добавь тип провайдера в `ProviderType` в `instrument-mapper.ts`
+3. Зарегистрируй в фабрике `market-data/index.ts`
+4. Добавь маппинг в `instrument-mapper.ts`
+5. При необходимости обнови `MarketDataService`
+
+### Как добавить новый источник новостей
+
+1. Создай файл в `src/integrations/news/` реализующий `NewsProvider`
+2. Подключи в `MarketDataService.aggregateNews()`
+
+### Кэширование
+
+Все провайдеры используют общий `MarketCache` с TTL:
+- Котировки: 60 секунд
+- Исторические данные: 5 минут
+- Новости: 15 минут
+- Sentiment: 10 минут
+- Технический анализ: 2 минуты
+
+### Важно
+- Используются только бесплатные API без ключей
+- Все провайдеры gracefully fallback при недоступности API (возвращают `null` / `[]`)
+- Не нарушай ToS источников
 
 ---
 
