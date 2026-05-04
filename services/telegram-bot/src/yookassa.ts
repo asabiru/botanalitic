@@ -9,6 +9,10 @@ export type PaymentResult = {
 };
 
 export class YooKassaService {
+  get isConfigured(): boolean {
+    return Boolean(config.YOOKASSA_SHOP_ID && config.YOOKASSA_SECRET_KEY);
+  }
+
   async createPayment(params: {
     instrument: InstrumentCategory;
     telegramUserId: number;
@@ -16,6 +20,10 @@ export class YooKassaService {
     orderId?: string;
     amountRub?: number;
   }): Promise<PaymentResult> {
+    if (!config.YOOKASSA_SHOP_ID || !config.YOOKASSA_SECRET_KEY) {
+      throw new Error("YooKassa is not configured. Set YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY.");
+    }
+
     const finalAmount = params.amountRub ?? params.instrument.priceRub;
 
     const payload = {

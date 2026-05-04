@@ -330,6 +330,29 @@ bot.action(/^pay:(.+)$/, async (ctx) => {
     originalAmountRub: originalAmount
   });
 
+  if (!yooKassaService.isConfigured) {
+    await orderStore.update(order.id, { status: "paid" });
+    await ctx.reply("⏳ Генерирую анализ...");
+
+    try {
+      const marketContext = await marketDataService.getMarketContext(instrument.id);
+      const chunks = await aiAnalysisService.generateAnalysis({
+        instrument,
+        ticker: session.ticker,
+        investorProfile: session.investorProfile,
+        marketContext
+      });
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+      }
+      await orderStore.update(order.id, { status: "delivered" });
+    } catch (err) {
+      console.error("Analysis generation error:", err);
+      await ctx.reply("Произошла ошибка при генерации анализа. Попробуйте позже.");
+    }
+    return;
+  }
+
   try {
     const payment = await yooKassaService.createPayment({
       instrument,
