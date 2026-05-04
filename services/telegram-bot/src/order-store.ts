@@ -98,6 +98,18 @@ export class OrderStore {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  listAll(): OrderRecord[] {
+    return [...this.orders.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  uniqueUserIds(): Set<number> {
+    const ids = new Set<number>();
+    for (const order of this.orders.values()) {
+      ids.add(order.telegramUserId);
+    }
+    return ids;
+  }
+
   private load() {
     if (!existsSync(this.storagePath)) {
       return;
