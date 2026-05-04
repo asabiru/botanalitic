@@ -1,13 +1,23 @@
 import { Markup } from "telegraf";
+import { Input } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
-import { findQuoteByInstrumentId, formatQuote } from "./quotes.js";
+import { fetchLiveQuote, formatQuote } from "./quotes.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, marketDataService, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import type { AnalysisResult } from "./ai-analysis.js";
+
+async function sendAnalysisResult(ctx: any, result: AnalysisResult): Promise<void> {
+  await ctx.reply(result.text, { parse_mode: "HTML" });
+
+  for (const chart of result.charts) {
+    await ctx.replyWithPhoto(Input.fromBuffer(chart, "chart.png"));
+  }
+}
 
 function mainMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📚 Каталог аналитики", "catalog")],
-    [Markup.button.callback("📊 Котировки", "quotes_menu")],
+    [Markup.button.callback("📊 Котировки (live)", "quotes_menu")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
@@ -25,7 +35,7 @@ bot.start(async (ctx: any) => {
 
   await ctx.reply(
     [
-      "Привет! Я бот <b>AI Market View</b>.",
+      "Привет! Я бот <b>AI Finance</b>.",
       "",
       "Я помогаю клиентам купить аналитический разбор по рынкам и инструментам:",
       "• валюты",
@@ -34,8 +44,13 @@ bot.start(async (ctx: any) => {
       "• индексы",
       "• криптовалюты",
       "",
+      "Котировки обновляются в реальном времени из:",
+      "• Yahoo Finance, MOEX, CoinGecko, ЦБ РФ",
+      "• Новости: Investing.com, Bloomberg RSS",
+      "• Тех. анализ: TradingView",
+      "",
       "Оплата проходит через ЮKassa.",
-      "После подтверждения оплаты бот может автоматически отправить аналитический материал.",
+      "После подтверждения оплаты бот автоматически отправит аналитический материал.",
       "",
       "⚠️ Информация в боте не является индивидуальной инвестиционной рекомендацией."
     ].join("\n"),
@@ -59,7 +74,9 @@ bot.action("buy_help", async (ctx: any) => {
       "1. Вы выбираете рынок или актив.",
       "2. При необходимости присылаете тикер.",
       "3. Бот создаёт заказ и ссылку на оплату ЮKassa.",
-      "4. После webhook-подтверждения оплаты бот отправляет аналитику автоматически."
+      "4. После webhook-подтверждения оплаты бот отправляет аналитику автоматически.",
+      "",
+      "Все котировки и рекомендации формируются на основе данных в реальном времени."
     ].join("\n")
   );
 });
@@ -99,14 +116,22 @@ bot.action("about", async (ctx: any) => {
   await ctx.answerCbQuery();
   await ctx.reply(
     [
-      "AI Market View — сервис продажи аналитики по финансовым рынкам.",
-      "Источники идей и данных: Investing.com, TradingView, Bloomberg, X.com.",
+      "AI Finance — сервис продажи аналитики по финансовым рынкам.",
+      "",
+      "Источники данных в реальном времени:",
+      "• Yahoo Finance — нефть, газ, золото, серебро, акции США, EUR/USD",
+      "• MOEX ISS — акции РФ, индекс Мосбиржи, RGBI",
+      "• CoinGecko — криптовалюты",
+      "• ЦБ РФ — курсы валют (USD/RUB, CNY/RUB)",
+      "• TradingView Scanner — техническая сводка",
+      "• Investing.com RSS — финансовые новости",
+      "• Bloomberg RSS — мировые рынки",
       "",
       "Формат результата:",
-      "• краткий рыночный обзор",
-      "• ключевые уровни",
-      "• сценарии",
-      "• риски",
+      "• текущая котировка и изменение",
+      "• техническая рекомендация TradingView",
+      "• сценарии и риски",
+      "• последние новости",
       "• идея по горизонту"
     ].join("\n")
   );
@@ -115,7 +140,7 @@ bot.action("about", async (ctx: any) => {
 bot.action("quotes_menu", async (ctx: any) => {
   await ctx.answerCbQuery();
   await ctx.reply(
-    "Выберите инструмент для просмотра котировок:",
+    "Выберите инструмент для просмотра котировок в реальном времени:",
     Markup.inlineKeyboard(
       instrumentCatalog.map((item) => [Markup.button.callback(item.title, `quote:${item.id}`)])
     )
@@ -133,16 +158,19 @@ bot.action(/^quote:(.+)$/, async (ctx: any) => {
     return;
   }
 
-  const quote = findQuoteByInstrumentId(instrumentId);
+  await ctx.reply("⏳ Загружаю актуальные котировки...");
+
+  const quote = await fetchLiveQuote(marketDataService, instrumentId);
 
   if (!quote) {
-    await ctx.reply(`Котировки для ${instrument.title} пока недоступны.`);
+    await ctx.reply(`Не удалось получить котировки для ${instrument.title}. Попробуйте позже.`);
     return;
   }
 
   await ctx.reply(formatQuote(quote), {
     parse_mode: "HTML",
     ...Markup.inlineKeyboard([
+      [Markup.button.callback("🔄 Обновить", `quote:${instrumentId}`)],
       [Markup.button.callback("📚 Подробный анализ", `instrument:${instrumentId}`)],
       [Markup.button.callback("◀️ Назад к котировкам", "quotes_menu")]
     ])
@@ -166,7 +194,7 @@ bot.action(/^instrument:(.+)$/, async (ctx: any) => {
     investorProfile: undefined
   });
 
-  const quote = findQuoteByInstrumentId(instrument.id);
+  const quote = await fetchLiveQuote(marketDataService, instrument.id);
   const quoteBlock = quote
     ? [
         "",
@@ -204,14 +232,19 @@ bot.action(/^demo:(.+)$/, async (ctx: any) => {
     return;
   }
 
+  await ctx.reply("⏳ Загружаю рыночные данные и формирую анализ...");
+
   const session = sessionStore.get(ctx.from.id);
-  const analysis = await aiAnalysisService.generateAnalysis({
+  const marketContext = await marketDataService.getMarketContext(instrument.id, session.ticker);
+
+  const result = await aiAnalysisService.generateAnalysis({
     instrument,
     ticker: session.ticker,
-    investorProfile: session.investorProfile
+    investorProfile: session.investorProfile,
+    marketContext,
   });
 
-  await ctx.reply(analysis, { parse_mode: "HTML" });
+  await sendAnalysisResult(ctx, result);
 });
 
 bot.action(/^pay:(.+)$/, async (ctx: any) => {
@@ -234,6 +267,27 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
     ticker: session.ticker,
     investorProfile: session.investorProfile
   });
+
+  if (!yooKassaService.isConfigured) {
+    orderStore.update(order.id, { status: "paid" });
+    await ctx.reply("⏳ Генерирую анализ на основе актуальных рыночных данных...");
+
+    try {
+      const marketContext = await marketDataService.getMarketContext(instrument.id, session.ticker);
+      const result = await aiAnalysisService.generateAnalysis({
+        instrument,
+        ticker: session.ticker,
+        investorProfile: session.investorProfile,
+        marketContext,
+      });
+      await sendAnalysisResult(ctx, result);
+      orderStore.update(order.id, { status: "delivered" });
+    } catch (err) {
+      console.error("Analysis generation error:", err);
+      await ctx.reply("Произошла ошибка при генерации анализа. Попробуйте позже.");
+    }
+    return;
+  }
 
   try {
     const payment = await yooKassaService.createPayment({
@@ -260,7 +314,7 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
         "После успешной оплаты ЮKassa отправит webhook, и бот автоматически пришлёт результат."
       ].join("\n")
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("YooKassa createPayment error", error);
     orderStore.update(order.id, { status: "cancelled" });
     await ctx.reply("Не удалось создать платёж. Проверьте настройки ЮKassa и попробуйте снова.");
@@ -287,7 +341,7 @@ bot.on("text", async (ctx: any) => {
   await ctx.reply("Используйте /start, чтобы открыть меню бота.", mainMenu());
 });
 
-bot.catch((error: any) => {
+bot.catch((error: unknown) => {
   console.error("Telegram bot error", error);
 });
 
@@ -299,7 +353,7 @@ app.listen(port, () => {
 });
 
 bot.launch().then(() => {
-  console.log("AI Market View bot started");
+  console.log("AI Finance bot started");
 });
 
 process.once("SIGINT", () => bot.stop("SIGINT"));

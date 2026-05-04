@@ -1,5 +1,6 @@
 import express from "express";
-import { bot, orderStore, aiAnalysisService } from "./app-context.js";
+import { Input } from "telegraf";
+import { bot, orderStore, aiAnalysisService, marketDataService } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 
 type YooKassaWebhookEvent = {
@@ -54,10 +55,13 @@ export function createServer() {
       return;
     }
 
-    const analysis = await aiAnalysisService.generateAnalysis({
+    const marketContext = await marketDataService.getMarketContext(instrument.id, order.ticker);
+
+    const result = await aiAnalysisService.generateAnalysis({
       instrument,
       ticker: order.ticker,
-      investorProfile: order.investorProfile
+      investorProfile: order.investorProfile,
+      marketContext,
     });
 
     await bot.telegram.sendMessage(
@@ -65,9 +69,13 @@ export function createServer() {
       "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
     );
 
-    await bot.telegram.sendMessage(order.telegramUserId, analysis, {
+    await bot.telegram.sendMessage(order.telegramUserId, result.text, {
       parse_mode: "HTML"
     });
+
+    for (const chart of result.charts) {
+      await bot.telegram.sendPhoto(order.telegramUserId, Input.fromBuffer(chart, "chart.png"));
+    }
 
     orderStore.update(order.id, { status: "delivered" });
 

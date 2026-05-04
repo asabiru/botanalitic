@@ -1,7 +1,6 @@
-export type QuoteLevel = {
-  price: number;
-  label: string;
-};
+import type { MarketQuote } from "./integrations/market-data/provider.interface.js";
+import type { MarketContext } from "./integrations/market-data.service.js";
+import type { MarketDataService } from "./integrations/market-data.service.js";
 
 export type InstrumentQuote = {
   instrumentId: string;
@@ -12,274 +11,113 @@ export type InstrumentQuote = {
   changePercent: number;
   currency: string;
   unit: string;
-  support: QuoteLevel[];
-  resistance: QuoteLevel[];
+  volume?: number;
+  high?: number;
+  low?: number;
+  weeklyChange?: number | null;
+  technicalSignal?: string | null;
   updatedAt: string;
   note?: string;
 };
 
-const UPDATED_AT = "2026-05-04";
+const INSTRUMENT_META: Record<string, { ticker: string; currency: string; unit: string }> = {
+  "cny-rub": { ticker: "CNY/RUB", currency: "RUB", unit: "за 1 CNY" },
+  "usd-rub": { ticker: "USD/RUB", currency: "RUB", unit: "за 1 USD" },
+  oil: { ticker: "Brent", currency: "USD", unit: "за баррель" },
+  gas: { ticker: "NG", currency: "USD", unit: "за MMBtu" },
+  gold: { ticker: "XAU/USD", currency: "USD", unit: "за тр. унцию" },
+  silver: { ticker: "XAG/USD", currency: "USD", unit: "за тр. унцию" },
+  "us-stocks": { ticker: "S&P 500", currency: "USD", unit: "пунктов" },
+  "ru-stocks": { ticker: "MOEX", currency: "RUB", unit: "пунктов" },
+  imoex: { ticker: "IMOEX", currency: "RUB", unit: "пунктов" },
+  rgbi: { ticker: "RGBI", currency: "RUB", unit: "пунктов" },
+  crypto: { ticker: "BTC/USD", currency: "USD", unit: "за 1 BTC" },
+  "eur-usd": { ticker: "EUR/USD", currency: "USD", unit: "за 1 EUR" },
+};
 
-export const instrumentQuotes: InstrumentQuote[] = [
-  {
-    instrumentId: "cny-rub",
-    ticker: "CNY/RUB",
-    currentPrice: 11.82,
-    previousClose: 11.75,
-    change: 0.07,
-    changePercent: 0.60,
-    currency: "RUB",
-    unit: "за 1 CNY",
-    support: [
-      { price: 11.60, label: "Ближайшая поддержка" },
-      { price: 11.35, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 12.00, label: "Ближайшее сопротивление" },
-      { price: 12.30, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT
-  },
-  {
-    instrumentId: "usd-rub",
-    ticker: "USD/RUB",
-    currentPrice: 81.50,
-    previousClose: 81.20,
-    change: 0.30,
-    changePercent: 0.37,
-    currency: "RUB",
-    unit: "за 1 USD",
-    support: [
-      { price: 80.00, label: "Ближайшая поддержка" },
-      { price: 78.50, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 83.00, label: "Ближайшее сопротивление" },
-      { price: 85.50, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT
-  },
-  {
-    instrumentId: "oil",
-    ticker: "Brent",
-    currentPrice: 72.40,
-    previousClose: 71.85,
-    change: 0.55,
-    changePercent: 0.77,
-    currency: "USD",
-    unit: "за баррель",
-    support: [
-      { price: 70.00, label: "Ближайшая поддержка" },
-      { price: 67.50, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 75.00, label: "Ближайшее сопротивление" },
-      { price: 78.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "WTI торгуется ~$68.20/барр."
-  },
-  {
-    instrumentId: "gas",
-    ticker: "NG",
-    currentPrice: 2.85,
-    previousClose: 2.78,
-    change: 0.07,
-    changePercent: 2.52,
-    currency: "USD",
-    unit: "за MMBtu",
-    support: [
-      { price: 2.60, label: "Ближайшая поддержка" },
-      { price: 2.35, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 3.10, label: "Ближайшее сопротивление" },
-      { price: 3.50, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "Сезонность: низкий спрос весна-лето"
-  },
-  {
-    instrumentId: "gold",
-    ticker: "XAU/USD",
-    currentPrice: 2680.00,
-    previousClose: 2665.50,
-    change: 14.50,
-    changePercent: 0.54,
-    currency: "USD",
-    unit: "за тр. унцию",
-    support: [
-      { price: 2620.00, label: "Ближайшая поддержка" },
-      { price: 2560.00, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 2720.00, label: "Ближайшее сопротивление" },
-      { price: 2790.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT
-  },
-  {
-    instrumentId: "silver",
-    ticker: "XAG/USD",
-    currentPrice: 32.50,
-    previousClose: 32.10,
-    change: 0.40,
-    changePercent: 1.25,
-    currency: "USD",
-    unit: "за тр. унцию",
-    support: [
-      { price: 31.00, label: "Ближайшая поддержка" },
-      { price: 29.50, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 34.00, label: "Ближайшее сопротивление" },
-      { price: 36.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT
-  },
-  {
-    instrumentId: "us-stocks",
-    ticker: "S&P 500",
-    currentPrice: 5820.00,
-    previousClose: 5790.00,
-    change: 30.00,
-    changePercent: 0.52,
-    currency: "USD",
-    unit: "пунктов",
-    support: [
-      { price: 5700.00, label: "Ближайшая поддержка" },
-      { price: 5550.00, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 5900.00, label: "Ближайшее сопротивление" },
-      { price: 6050.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "NASDAQ ~18 650, Dow ~42 800"
-  },
-  {
-    instrumentId: "ru-stocks",
-    ticker: "MOEX",
-    currentPrice: 2950.00,
-    previousClose: 2935.00,
-    change: 15.00,
-    changePercent: 0.51,
-    currency: "RUB",
-    unit: "пунктов",
-    support: [
-      { price: 2870.00, label: "Ближайшая поддержка" },
-      { price: 2780.00, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 3020.00, label: "Ближайшее сопротивление" },
-      { price: 3100.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "Газпром ~168 ₽, Сбер ~310 ₽, Лукойл ~7 450 ₽"
-  },
-  {
-    instrumentId: "imoex",
-    ticker: "IMOEX",
-    currentPrice: 2950.00,
-    previousClose: 2935.00,
-    change: 15.00,
-    changePercent: 0.51,
-    currency: "RUB",
-    unit: "пунктов",
-    support: [
-      { price: 2870.00, label: "Ближайшая поддержка" },
-      { price: 2780.00, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 3020.00, label: "Ближайшее сопротивление" },
-      { price: 3100.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "Топ по весу: Сбер, Газпром, Лукойл, Яндекс"
-  },
-  {
-    instrumentId: "rgbi",
-    ticker: "RGBI",
-    currentPrice: 106.50,
-    previousClose: 106.80,
-    change: -0.30,
-    changePercent: -0.28,
-    currency: "RUB",
-    unit: "пунктов",
-    support: [
-      { price: 105.00, label: "Ближайшая поддержка" },
-      { price: 103.00, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 108.00, label: "Ближайшее сопротивление" },
-      { price: 110.50, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "Ключевая ставка ЦБ РФ — 16%"
-  },
-  {
-    instrumentId: "crypto",
-    ticker: "BTC/USD",
-    currentPrice: 95200.00,
-    previousClose: 93800.00,
-    change: 1400.00,
-    changePercent: 1.49,
-    currency: "USD",
-    unit: "за 1 BTC",
-    support: [
-      { price: 90000.00, label: "Ближайшая поддержка" },
-      { price: 85000.00, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 100000.00, label: "Ближайшее сопротивление" },
-      { price: 108000.00, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT,
-    note: "ETH ~$3 750, SOL ~$185, BNB ~$620"
-  },
-  {
-    instrumentId: "eur-usd",
-    ticker: "EUR/USD",
-    currentPrice: 1.0950,
-    previousClose: 1.0920,
-    change: 0.0030,
-    changePercent: 0.27,
-    currency: "USD",
-    unit: "за 1 EUR",
-    support: [
-      { price: 1.0850, label: "Ближайшая поддержка" },
-      { price: 1.0750, label: "Сильная поддержка" }
-    ],
-    resistance: [
-      { price: 1.1050, label: "Ближайшее сопротивление" },
-      { price: 1.1150, label: "Сильное сопротивление" }
-    ],
-    updatedAt: UPDATED_AT
+const TECHNICAL_LABELS: Record<string, string> = {
+  strong_buy: "Активно покупать",
+  buy: "Покупать",
+  neutral: "Нейтрально",
+  sell: "Продавать",
+  strong_sell: "Активно продавать",
+};
+
+function quoteFromMarket(instrumentId: string, mq: MarketQuote, ctx: MarketContext): InstrumentQuote {
+  const meta = INSTRUMENT_META[instrumentId] ?? { ticker: mq.symbol, currency: "USD", unit: "" };
+  const prev = mq.price - mq.change;
+
+  return {
+    instrumentId,
+    ticker: meta.ticker,
+    currentPrice: mq.price,
+    previousClose: prev || mq.price,
+    change: mq.change,
+    changePercent: mq.changePercent,
+    currency: meta.currency,
+    unit: meta.unit,
+    volume: mq.volume || undefined,
+    high: mq.high !== mq.price ? mq.high : undefined,
+    low: mq.low !== mq.price ? mq.low : undefined,
+    weeklyChange: ctx.weeklyChange,
+    technicalSignal: ctx.technicalSummary ? TECHNICAL_LABELS[ctx.technicalSummary] ?? ctx.technicalSummary : null,
+    updatedAt: new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC",
+  };
+}
+
+export async function fetchLiveQuote(
+  marketDataService: MarketDataService,
+  instrumentId: string,
+  ticker?: string,
+): Promise<InstrumentQuote | null> {
+  try {
+    const ctx = await marketDataService.getMarketContext(instrumentId, ticker);
+    if (!ctx.quote) return null;
+    return quoteFromMarket(instrumentId, ctx.quote, ctx);
+  } catch (err) {
+    console.error(`[Quotes] Failed to fetch live quote for ${instrumentId}:`, err);
+    return null;
   }
-];
-
-export function findQuoteByInstrumentId(instrumentId: string): InstrumentQuote | undefined {
-  return instrumentQuotes.find((q) => q.instrumentId === instrumentId);
 }
 
 export function formatQuote(quote: InstrumentQuote): string {
   const sign = quote.change >= 0 ? "+" : "";
+  const arrow = quote.change >= 0 ? "▲" : "▼";
+
   const lines: string[] = [
-    `📌 <b>${quote.ticker}</b>: ${quote.currentPrice} ${quote.currency} ${quote.unit}`,
-    `${sign}${quote.change} (${sign}${quote.changePercent}%) от пред. закрытия`,
-    "",
-    "📉 <b>Поддержка:</b>",
-    ...quote.support.map((s) => `  • ${s.price} — ${s.label}`),
-    "",
-    "📈 <b>Сопротивление:</b>",
-    ...quote.resistance.map((r) => `  • ${r.price} — ${r.label}`)
+    `📌 <b>${quote.ticker}</b>: ${quote.currentPrice.toFixed(2)} ${quote.currency} ${quote.unit}`,
+    `${arrow} ${sign}${quote.change.toFixed(2)} (${sign}${quote.changePercent.toFixed(2)}%)`,
   ];
+
+  if (quote.high && quote.low) {
+    lines.push(`Диапазон дня: ${quote.low.toFixed(2)} – ${quote.high.toFixed(2)}`);
+  }
+
+  if (quote.volume) {
+    lines.push(`Объём: ${formatVolume(quote.volume)}`);
+  }
+
+  if (quote.weeklyChange != null) {
+    const ws = quote.weeklyChange >= 0 ? "+" : "";
+    lines.push(`За неделю: ${ws}${quote.weeklyChange.toFixed(2)}%`);
+  }
+
+  if (quote.technicalSignal) {
+    lines.push("", `📊 TradingView: <b>${quote.technicalSignal}</b>`);
+  }
 
   if (quote.note) {
     lines.push("", `💡 ${quote.note}`);
   }
 
-  lines.push("", `🕐 Обновлено: ${quote.updatedAt}`);
+  lines.push("", `🕐 ${quote.updatedAt}`);
 
   return lines.join("\n");
+}
+
+function formatVolume(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}B`;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+  return String(v);
 }

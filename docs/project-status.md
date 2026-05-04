@@ -1,222 +1,120 @@
-# Project Status — AI Market View Bot
+# Project Status — AI Finance
 
-Этот документ нужен для GitHub, чтобы сразу понимать:
-- что уже реализовано
-- в каком состоянии проект сейчас
-- какие ограничения есть
-- что делать дальше по приоритетам
+## 1. Текущее состояние
 
----
+**Статус: полнофункциональный MVP с real-time данными**
 
-## 1. Текущее состояние проекта
-
-Статус: **рабочий MVP+**
-
-Проект уже:
-- собирается
-- проходит typecheck
-- запускается локально
-- имеет Telegram bot flow
-- имеет payment flow через ЮKassa
-- имеет webhook endpoint
-- имеет базовую автоматическую выдачу аналитики
-- имеет документацию для продолжения разработки
+Проект:
+- собирается и проходит typecheck
+- получает котировки в реальном времени из 4 провайдеров
+- строит графики цен и объёмов
+- формирует полный аналитический отчёт с конкретными торговыми рекомендациями
+- агрегирует новости из 3 источников
+- поддерживает техническую сводку TradingView
+- работает с оплатой ЮKassa (опционально)
 
 ---
 
-## 2. Что уже сделано
+## 2. Что реализовано
 
-### Telegram bot
-Реализовано:
-- `/start`
-- главное меню
-- каталог аналитики
-- выбор инструмента
-- ввод тикера
-- демо-анализ
-- сценарий покупки
-- просмотр списка заявок
+### Источники данных (real-time)
+- **Yahoo Finance** — нефть, газ, золото, серебро, акции США, EUR/USD
+- **MOEX ISS** — акции РФ, индекс Мосбиржи (IMOEX), RGBI
+- **CoinGecko** — 25+ криптовалют (BTC, ETH, SOL, TON и др.)
+- **ЦБ РФ** — курсы USD/RUB, CNY/RUB
+- **TradingView Scanner** — техническая рекомендация (buy/sell/neutral)
+- **Investing.com RSS** — новости по категориям (forex, commodities, stocks)
+- **Bloomberg RSS** — мировые рыночные новости
+- **X.com** — сентимент-анализ (stub, требует API key)
 
-### Каталог инструментов
-Поддерживаются:
-- 🇨🇳 Юань/Рубль
-- 💵 Доллар/Рубль
-- 🛢 Нефть
-- 🔵 Газ
-- 🥇 Золото
-- 🥈 Серебро
-- 🇺🇸 Акции США
-- 📈 Акции РФ
-- 🇷🇺 Индекс Мосбиржи
-- 🇷🇺 Индекс RGBI
-- ₿ Криптовалюты
-- 🇪🇺 Евро/Доллар
+### Telegram Bot
+- `/start` — приветствие и главное меню
+- 📊 Котировки (live) — реальные данные + кнопка обновления
+- 📚 Каталог аналитики — 12 инструментов
+- 🤖 Демо-аналитика — полный отчёт на реальных данных
+- 💳 Оплата — ЮKassa или прямая генерация
+- 🧾 Мои заявки — история заказов
+- ℹ️ О сервисе — описание источников данных
 
-### Оплата
-Реализовано:
-- создание заказа до оплаты
-- создание ссылки на оплату через ЮKassa
-- передача `orderId` в metadata
-- webhook endpoint для `payment.succeeded`
-- автоматическая отправка аналитики после оплаты
+### Аналитический отчёт
+Полный отчёт из 8 разделов:
+1. Текущая котировка с Pivot Points (R2, R1, S1, S2)
+2. Техническая сводка TradingView (рекомендация + индекс)
+3. Сентимент-анализ X.com
+4. Исторический анализ (SMA 5/20, волатильность, тренд, объёмы)
+5. Торговые сценарии (позитивный, нейтральный, негативный с уровнями)
+6. Риски
+7. Торговая идея (вход, стоп-лосс, тейк-профит, горизонт)
+8. Последние новости с ссылками
+
+### Графики
+- График цены (close/high/low) за месяц — линейный
+- График объёмов торгов — столбчатый (зелёный/красный)
+- Генерация через QuickChart.io (Chart.js → PNG)
+
+### Кэширование
+- Котировки: 60 сек
+- Историч. данные: 5 мин
+- Новости: 15 мин
+- Сентимент: 10 мин
+- Тех. анализ: 2 мин
+
+### Оплата (ЮKassa)
+- Опциональная — бот работает и без неё
+- Создание заказа → ссылка на оплату → webhook → доставка отчёта
+- `isConfigured` проверка наличия ключей
 
 ### Backend
-Реализовано:
 - Express HTTP server
 - `GET /health`
 - `POST /webhooks/yookassa`
 - `GET /orders/:telegramUserId`
 
-### Хранение данных
-Сейчас есть:
-- пользовательская сессия в памяти
-- заказы в памяти
-- сохранение заказов в `tmp/orders.json`
+---
 
-### Документация
-Подготовлено:
-- `README.md`
-- `docs/developer-guide.md`
-- `docs/project-status.md`
+## 3. Проверено
+
+- `npm install` — OK
+- `npm run typecheck` — OK
+- `npm run build` — OK
 
 ---
 
-## 3. Что проверено
+## 4. Что осталось сделать
 
-Проверено локально:
-- `npm install`
-- `npm run typecheck`
-- `npm run build`
+### Приоритет 1 — Реальный AI pipeline
+- Подключить OpenAI для генерации текстовой аналитики
+- Промпт-шаблоны по типам активов
+- Structured output
 
-Статус:
-- typecheck ✅
-- build ✅
+### Приоритет 2 — X.com API
+- Реальный сентимент (сейчас stub)
+- Требует Twitter/X API key
 
----
+### Приоритет 3 — Persistence
+- PostgreSQL + Prisma
+- Сохранение заказов, пользователей
 
-## 4. Ограничения текущей версии
+### Приоритет 4 — Подписки и алерты
+- Утренний/вечерний обзор рынка
+- Алерты по уровням
+- Регулярная рассылка котировок
 
-Это **не финальный production-ready продукт**.
-
-### Ограничения:
-- нет PostgreSQL
-- нет Prisma
-- нет Redis / queue
-- нет полноценной идемпотентности webhook
-- нет проверки подлинности webhook ЮKassa
-- нет реального AI pipeline
-- нет реальной агрегации данных из market/news/social providers
-- нет админки
-- нет мониторинга и алертов
-- нет тестов
-- нет Docker/deploy-контура
-- нет юридического пакета документов
+### Приоритет 5 — Docker и deploy
+- Dockerfile
+- docker-compose
+- CI/CD pipeline
+- Мониторинг
 
 ---
 
-## 5. Что осталось сделать
+## 5. Технологический стек
 
-Ниже — список задач по приоритету.
-
-### Priority 1 — Data persistence
-Сделать:
-- PostgreSQL
-- Prisma schema
-- migrations
-- repositories
-- заменить file storage на DB
-
-### Priority 2 — Payment reliability
-Сделать:
-- verify webhook source
-- идемпотентная обработка webhook
-- retry-логика
-- журнал payment events
-- статусы доставки аналитики
-
-### Priority 3 — Real AI analysis
-Сделать:
-- OpenAI / LLM integration
-- prompt templates
-- structured output
-- нормализация ответа
-- контроль длины ответа
-- cost tracking
-
-### Priority 4 — Data integrations
-Сделать:
-- market data provider layer
-- news ingestion layer
-- social sentiment layer
-- legal-safe integration strategy
-- abstraction над провайдерами
-
-### Priority 5 — Operations
-Сделать:
-- operator/admin mode
-- просмотр заказов
-- ручная перевыдача аналитики
-- лог действий
-- история платежей
-
-### Priority 6 — Quality
-Сделать:
-- unit tests
-- integration tests
-- webhook tests
-- CI pipeline
-- lint / formatting policy
-
-### Priority 7 — Deployment
-Сделать:
-- Docker
-- environment profiles
-- production config
-- process manager
-- monitoring
-- alerts
-
-### Priority 8 — Legal/commercial layer
-Сделать:
-- оферта
-- disclaimer
-- privacy policy
-- тарифы
-- подписки
-- политика возвратов
-
----
-
-## 6. Рекомендуемый порядок разработки
-
-Лучший порядок дальнейшей работы:
-
-1. PostgreSQL + Prisma
-2. webhook reliability
-3. real AI pipeline
-4. data provider integrations
-5. operator/admin tools
-6. tests
-7. deploy & monitoring
-8. legal/commercial docs
-
----
-
-## 7. Что уже можно считать хорошим результатом
-
-Уже сейчас проект годится как:
-- хорошая стартовая база
-- MVP для пилота
-- foundation для дальнейшей команды разработки
-- репозиторий, который можно выкладывать на GitHub и развивать дальше
-
----
-
-## 8. Что можно сделать сразу после публикации на GitHub
-
-Сразу следующим этапом можно:
-1. создать issues по roadmap
-2. завести milestones
-3. выделить задачи на backend / payments / AI / infra
-4. настроить branch strategy
-5. начать переход с file storage на PostgreSQL
+- **Runtime:** Node.js 20+
+- **Язык:** TypeScript
+- **Telegram:** Telegraf
+- **HTTP:** Express
+- **Валидация:** Zod
+- **Данные:** Yahoo Finance, MOEX ISS, CoinGecko, ЦБ РФ, TradingView, RSS
+- **Графики:** QuickChart.io (Chart.js)
+- **Оплата:** ЮKassa API (опционально)

@@ -1,8 +1,8 @@
 {
-  "name": "ai-market-view-bot",
+  "name": "ai-finance",
   "version": "0.1.0",
   "private": true,
-  "description": "Telegram bot for selling AI-powered market analysis with YooKassa payments",
+  "description": "AI Finance — Telegram bot for AI-powered market analysis with real-time data and X.com sentiment",
   "workspaces": [
     "services/*"
   ],
