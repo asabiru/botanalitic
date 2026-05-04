@@ -13,7 +13,9 @@
     "typecheck": "npm run typecheck --workspace telegram-bot",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\""
+    "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",
+    "test": "npm run test --workspace telegram-bot",
+    "test:coverage": "npm run test:coverage --workspace telegram-bot"
   },
   "engines": {
     "node": ">=20"

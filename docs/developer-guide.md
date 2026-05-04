@@ -173,6 +173,49 @@ npm run build
 
 ## 4. Webhook flow
 
+## 4. Тестирование
+
+### Запуск тестов
+```bash
+npm run test
+```
+
+### Запуск в watch-режиме
+```bash
+npm run test:watch
+```
+
+### Запуск с покрытием
+```bash
+npm run test:coverage
+```
+
+### Структура тестов
+Тесты находятся в `services/telegram-bot/src/__tests__/`:
+
+| Файл | Тип | Что покрывает |
+|------|-----|---------------|
+| `catalog.test.ts` | unit | Каталог инструментов, `findInstrumentById` |
+| `session-store.test.ts` | unit | `SessionStore`: get, patch, clear |
+| `order-store.test.ts` | unit | `OrderStore`: create, update, getById, getByPaymentId, listByTelegramUserId |
+| `ai-analysis.test.ts` | unit | `AiAnalysisService`: формат, секции, disclaimer |
+| `config.test.ts` | unit | Валидация env переменных через zod |
+| `yookassa.test.ts` | unit | `YooKassaService`: createPayment с моком axios |
+| `server.test.ts` | integration | HTTP endpoints: /health, /webhooks/yookassa, /orders/:id |
+
+### Принципы
+- Все внешние сервисы (Telegram API, YooKassa API, OpenAI) замокированы
+- Тесты работают без `.env` и без внешних зависимостей
+- Порог покрытия: 70% по lines, branches, functions, statements
+
+### CI
+Тесты автоматически запускаются в GitHub Actions при push/PR в main.
+
+---
+
+## 5. Что нужно сделать в первую очередь дальше
+
+
 ### Как работает обработка webhook ЮKassa
 
 1. ЮKassa отправляет `POST /webhooks/yookassa` при изменении статуса платежа
@@ -390,6 +433,9 @@ app-context.ts
 
 ## 8. Как лучше развивать проект
 
+## 6. Как лучше развивать проект
+
+
 ### Этап 1 — Persistence
 Сделать:
 - Prisma schema
@@ -428,6 +474,9 @@ app-context.ts
 
 ## 9. Как менять каталог инструментов
 
+## 7. Как менять каталог инструментов
+
+
 Редактируй файл:
 
 ```text
@@ -443,6 +492,9 @@ services/telegram-bot/src/catalog.ts
 ---
 
 ## 10. OpenAI интеграция (реализовано)
+
+## 8. Как подключить реальный OpenAI
+
 
 OpenAI API подключен и работает в production-режиме.
 
@@ -486,6 +538,9 @@ src/
 ---
 
 ## 11. Как подключить сбор данных
+
+## 9. Как подключить сбор данных
+
 
 ### Текущая реализация
 
@@ -665,6 +720,8 @@ admin/
 
 ## 10. Что важно не сломать
 
+## 10. Что важно не сломать
+
 
 При доработках следи за инвариантами:
 
@@ -678,6 +735,8 @@ admin/
 ---
 
 ## 13. Как публиковать на GitHub
+
+## 11. Как публиковать на GitHub
 
 ## 11. Как публиковать на GitHub
 
@@ -709,6 +768,8 @@ git push -u origin main
 
 ## 12. Что я бы делал следующим коммитом
 
+## 12. Что я бы делал следующим коммитом
+
 
 Рекомендую следующую последовательность:
 
@@ -727,6 +788,8 @@ git push -u origin main
 ---
 
 ## 15. Идеальный target state проекта
+
+## 13. Идеальный target state проекта
 
 ## 13. Идеальный target state проекта
 
@@ -753,6 +816,8 @@ git push -u origin main
 ---
 
 ## 16. Если будешь продолжать сам
+
+## 14. Если будешь продолжать сам
 
 ## 14. Если будешь продолжать сам
 
