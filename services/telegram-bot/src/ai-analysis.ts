@@ -1,4 +1,5 @@
 import { InstrumentCategory } from "./catalog.js";
+import { findQuoteByInstrumentId, formatQuote } from "./quotes.js";
 
 type AnalysisRequest = {
   instrument: InstrumentCategory;
@@ -13,13 +14,23 @@ export class AiAnalysisService {
       ? `Профиль клиента: ${request.investorProfile}`
       : "Профиль клиента: не указан.";
 
+    const quote = findQuoteByInstrumentId(request.instrument.id);
+    const quoteBlock = quote
+      ? [
+          "",
+          "<b>Текущие котировки:</b>",
+          formatQuote(quote),
+          ""
+        ]
+      : [""];
+
     return [
       `📊 <b>AI Market View — анализ: ${request.instrument.title}</b>`,
       "",
       `Источник идеи анализа: Investing.com, TradingView, Bloomberg, X.com.`,
       tickerLine,
       profileLine,
-      "",
+      ...quoteBlock,
       "<b>1. Базовый сценарий</b>",
       "Рынок сохраняет умеренную волатильность, а ключевым драйвером выступают новости по ставкам, макростатистика и технические уровни.",
       "",

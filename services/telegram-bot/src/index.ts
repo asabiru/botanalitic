@@ -1,11 +1,13 @@
 import { Markup } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
+import { findQuoteByInstrumentId, formatQuote } from "./quotes.js";
 import { createServer } from "./server.js";
 import { aiAnalysisService, bot, orderStore, sessionStore, yooKassaService } from "./app-context.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📚 Каталог аналитики", "catalog")],
+    [Markup.button.callback("📊 Котировки", "quotes_menu")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
@@ -110,6 +112,43 @@ bot.action("about", async (ctx: any) => {
   );
 });
 
+bot.action("quotes_menu", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    "Выберите инструмент для просмотра котировок:",
+    Markup.inlineKeyboard(
+      instrumentCatalog.map((item) => [Markup.button.callback(item.title, `quote:${item.id}`)])
+    )
+  );
+});
+
+bot.action(/^quote:(.+)$/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+
+  const instrumentId = ctx.match[1];
+  const instrument = findInstrumentById(instrumentId);
+
+  if (!instrument) {
+    await ctx.reply("Инструмент не найден.");
+    return;
+  }
+
+  const quote = findQuoteByInstrumentId(instrumentId);
+
+  if (!quote) {
+    await ctx.reply(`Котировки для ${instrument.title} пока недоступны.`);
+    return;
+  }
+
+  await ctx.reply(formatQuote(quote), {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("📚 Подробный анализ", `instrument:${instrumentId}`)],
+      [Markup.button.callback("◀️ Назад к котировкам", "quotes_menu")]
+    ])
+  });
+});
+
 bot.action(/^instrument:(.+)$/, async (ctx: any) => {
   await ctx.answerCbQuery();
 
@@ -127,12 +166,21 @@ bot.action(/^instrument:(.+)$/, async (ctx: any) => {
     investorProfile: undefined
   });
 
+  const quote = findQuoteByInstrumentId(instrument.id);
+  const quoteBlock = quote
+    ? [
+        "",
+        formatQuote(quote),
+        ""
+      ]
+    : [];
+
   await ctx.reply(
     [
       `<b>${instrument.title}</b>`,
       instrument.description,
-      `Стоимость: <b>${instrument.priceRub} ₽</b>`,
-      "",
+      `Стоимость анализа: <b>${instrument.priceRub} ₽</b>`,
+      ...quoteBlock,
       "Если для этой категории нужен тикер — отправьте его следующим сообщением.",
       "Если тикер не нужен, нажмите кнопку оплаты."
     ].join("\n"),
