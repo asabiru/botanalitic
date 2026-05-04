@@ -12,7 +12,9 @@ const envSchema = z.object({
   YOOKASSA_RETURN_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  OPENAI_MAX_TOKENS: z.coerce.number().int().positive().default(2000),
   ADMIN_CHAT_ID: z.string().optional(),
+  ADMIN_API_KEY: z.string().optional(),
   LOG_LEVEL: z.string().default("info")
 });
 
@@ -27,6 +29,8 @@ export const config: AppConfig = envSchema.parse({
   YOOKASSA_RETURN_URL: process.env.YOOKASSA_RETURN_URL ?? "https://t.me",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
+  OPENAI_MAX_TOKENS: process.env.OPENAI_MAX_TOKENS,
   ADMIN_CHAT_ID: process.env.ADMIN_CHAT_ID,
+  ADMIN_API_KEY: process.env.ADMIN_API_KEY,
   LOG_LEVEL: process.env.LOG_LEVEL
 });

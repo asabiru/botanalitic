@@ -14,10 +14,13 @@ export class YooKassaService {
     telegramUserId: number;
     ticker?: string;
     orderId?: string;
+    amountRub?: number;
   }): Promise<PaymentResult> {
+    const finalAmount = params.amountRub ?? params.instrument.priceRub;
+
     const payload = {
       amount: {
-        value: params.instrument.priceRub.toFixed(2),
+        value: finalAmount.toFixed(2),
         currency: "RUB"
       },
       confirmation: {

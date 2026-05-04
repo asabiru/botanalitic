@@ -22,6 +22,9 @@ export type OrderRecord = {
   status: OrderStatus;
   createdAt: string;
   updatedAt: string;
+  promoCode?: string;
+  discountPercent?: number;
+  originalAmountRub?: number;
 };
 
 type PersistedOrderState = {
@@ -93,6 +96,18 @@ export class OrderStore {
     return [...this.orders.values()]
       .filter((order) => order.telegramUserId === telegramUserId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  listAll(): OrderRecord[] {
+    return [...this.orders.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  uniqueUserIds(): number[] {
+    const ids = new Set<number>();
+    for (const order of this.orders.values()) {
+      ids.add(order.telegramUserId);
+    }
+    return [...ids];
   }
 
   private load() {

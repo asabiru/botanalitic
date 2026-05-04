@@ -156,6 +156,17 @@ GET /orders/:telegramUserId
 
 ---
 
+## Маркетинг
+
+- **Лендинг:** [`landing/index.html`](landing/index.html) — адаптивный лендинг с тёмной темой (Tailwind CSS)
+- **Маркетинговая стратегия:** [`docs/marketing-strategy.md`](docs/marketing-strategy.md) — ЦА, УТП, каналы, воронка, KPI, реферальная программа
+- **Контент-план:** [`docs/content-plan.md`](docs/content-plan.md) — план постов для Telegram-канала на 30 дней
+- **Готовые посты:** [`marketing/telegram-posts/`](marketing/telegram-posts/) — 7 постов для Telegram-канала
+- **SEO:** [`docs/seo-copy.md`](docs/seo-copy.md) — описания для BotFather, каталогов, мета-теги
+- **Changelog:** [`docs/changelog.md`](docs/changelog.md)
+
+---
+
 ## Ограничения текущей версии
 
 Сейчас это **не production-ready финальная версия**.
@@ -170,7 +181,7 @@ GET /orders/:telegramUserId
 - tests
 - Docker/deploy pipeline
 - admin/operator tools
-- legal docs package
+- ~~legal docs package~~ → реализовано (docs/legal/)
 
 ---
 
@@ -189,6 +200,50 @@ GET /orders/:telegramUserId
 Подробно:
 - [`docs/project-status.md`](docs/project-status.md)
 - [`docs/developer-guide.md`](docs/developer-guide.md)
+
+---
+
+## Юридическая информация
+
+Полный юридический пакет документов расположен в [`docs/legal/`](docs/legal/):
+
+| Документ | Файл |
+|---|---|
+| Публичная оферта | [`docs/legal/offer.md`](docs/legal/offer.md) |
+| Политика конфиденциальности | [`docs/legal/privacy-policy.md`](docs/legal/privacy-policy.md) |
+| Пользовательское соглашение | [`docs/legal/terms-of-service.md`](docs/legal/terms-of-service.md) |
+| Политика возвратов | [`docs/legal/refund-policy.md`](docs/legal/refund-policy.md) |
+| Дисклеймер | [`docs/legal/disclaimer.md`](docs/legal/disclaimer.md) |
+| Тарифы и описание услуг | [`docs/legal/pricing.md`](docs/legal/pricing.md) |
+
+В боте доступна команда `/legal` и кнопка «Юридическая информация» в главном меню.
+
+Константы для встраивания дисклеймера в ответы бота — в `services/telegram-bot/src/legal/legal-texts.ts`.
+
+> ⚠ Реквизиты ИП/ООО в документах оставлены как шаблон для заполнения владельцем.
+
+---
+
+## Команда AI-агентов
+
+Проект разрабатывается командой из 10 специализированных AI-агентов:
+
+| # | Имя | Роль |
+|---|-----|------|
+| 1 | **Призма** | PostgreSQL + Prisma ORM |
+| 2 | **Вебхук** | Надёжность платежей ЮKassa |
+| 3 | **Аналитик** | OpenAI интеграция |
+| 4 | **Девопс** | Docker, CI/CD, ESLint |
+| 5 | **Маркет** | Real-time рыночные данные |
+| 6 | **Маркетолог** | Маркетинг и продвижение |
+| 7 | **Тестер** | Unit/Integration тесты |
+| 8 | **Админ** | Админ-панель |
+| 9 | **Юрист** | Юридический пакет |
+| 10 | **Промо** | Промокоды и реферальная программа |
+
+Подробнее:
+- [`docs/team-agents.md`](docs/team-agents.md) — описание команды
+- [`docs/universal-ai-prompt.md`](docs/universal-ai-prompt.md) — промпт для запуска проекта в любом AI
 
 ---
 
