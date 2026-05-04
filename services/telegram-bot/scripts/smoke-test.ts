@@ -25,6 +25,12 @@ const cases: Array<{
     highlight: "Yahoo Finance retry/fallback + getFundamentals + GPT analyzer",
   },
   {
+    label: "TEAM (Atlassian, US stock)",
+    instrumentId: "us-stocks",
+    ticker: "TEAM",
+    highlight: "Repro for user-reported timeout — should complete in <10s",
+  },
+  {
     label: "SBER (MOEX stock)",
     instrumentId: "ru-stocks",
     ticker: "SBER",

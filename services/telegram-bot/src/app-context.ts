@@ -33,7 +33,13 @@ export const competitorAgent = new CompetitorAgent(competitorResearchService, co
 const stockCategoryStore = new StockCategoryStore();
 export const stockAnalyticsAgent = new StockAnalyticsAgent(stockCategoryStore);
 
-export const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+export const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN, {
+  // Default 90s is too tight for live analytics: each /analyze call may chain
+  // Yahoo retries (~15s on 429), OpenAI analyzer (~3-5s), 2 chart renders via
+  // QuickChart, and 2 photo uploads back to Telegram. 5 minutes gives enough
+  // headroom while still bounding pathological hangs.
+  handlerTimeout: 5 * 60 * 1000,
+});
 
 export const priceAlertStore = new PriceAlertStore();
 export const priceAlertService = new PriceAlertService(priceAlertStore, marketDataService, bot);
