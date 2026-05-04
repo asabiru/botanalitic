@@ -195,7 +195,7 @@
 - ~~нет админки~~ — реализована (Telegram + HTTP + HTML dashboard)
 - нет мониторинга и алертов
 - нет Docker/deploy-контура
-- нет юридического пакета документов
+- ~~нет юридического пакета документов~~ → реализовано (docs/legal/)
 
 ---
 
@@ -278,14 +278,20 @@
 - monitoring
 - alerts
 
-### Priority 8 — Legal/commercial layer
-Сделать:
-- оферта
-- disclaimer
-- privacy policy
-- тарифы
-- подписки
-- политика возвратов
+### Priority 8 — Legal/commercial layer ✅ DONE
+Реализовано:
+- публичная оферта (`docs/legal/offer.md`)
+- дисклеймер (`docs/legal/disclaimer.md`)
+- политика конфиденциальности (`docs/legal/privacy-policy.md`)
+- пользовательское соглашение (`docs/legal/terms-of-service.md`)
+- тарифы и описание услуг (`docs/legal/pricing.md`)
+- политика возвратов (`docs/legal/refund-policy.md`)
+- интеграция в бот: команда `/legal`, кнопка в главном меню
+- константы для дисклеймера (`src/legal/legal-texts.ts`)
+
+Осталось:
+- подписки (будущая реализация)
+- заполнить реквизиты ИП/ООО в шаблонах документов
 
 ---
 

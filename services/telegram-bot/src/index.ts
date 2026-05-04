@@ -13,6 +13,7 @@ import {
   handleResend,
   handleBroadcast
 } from "./admin/admin-handlers.js";
+import { LEGAL_INFO_MESSAGE } from "./legal/legal-texts.js";
 
 function mainMenu() {
   return Markup.inlineKeyboard([
@@ -20,7 +21,8 @@ function mainMenu() {
     [Markup.button.callback("🎁 Промокод", "promo_enter")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
-    [Markup.button.callback("ℹ️ О сервисе", "about")]
+    [Markup.button.callback("ℹ️ О сервисе", "about")],
+    [Markup.button.callback("📄 Юридическая информация", "legal")]
   ]);
 }
 
@@ -183,6 +185,23 @@ bot.command("referral", async (ctx: any) => {
     ].join("\n"),
     { parse_mode: "HTML" }
   );
+});
+
+/* ── Legal ────────────────────────────────────────────────────── */
+
+bot.command("legal", async (ctx: any) => {
+  await ctx.reply(LEGAL_INFO_MESSAGE, {
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
+});
+
+bot.action("legal", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(LEGAL_INFO_MESSAGE, {
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
 });
 
 /* ── Instrument selection ─────────────────────────────────────── */
