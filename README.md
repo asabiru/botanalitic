@@ -14,7 +14,8 @@ Telegram-бот для AI-аналитики финансовых инструм
 - агрегирует новости из Investing.com и Bloomberg RSS
 - анализирует сентимент из X.com
 - формирует полный аналитический отчёт с конкретными уровнями, pivot points, SMA, сценариями
-- исследует конкурентов и генерирует отчёт с идеями для развития
+- исследует конкурентов и генерирует предложения по улучшению (CompetitorAgent)
+- управляет категориями акций и рекомендациями (StockAnalyticsAgent)
 - поддерживает оплату через ЮKassa (опционально)
 
 Подробный статус:
@@ -44,8 +45,10 @@ Telegram-бот для AI-аналитики финансовых инструм
 - 📊 **Котировки (live)** — котировки в реальном времени с кнопкой обновления
 - 📚 **Каталог аналитики** — полный аналитический отчёт с графиками
 - 🤖 **Демо-аналитика** — бесплатный анализ на реальных данных
+- 📂 **Категории акций** — рекомендации по категориям (дивидендные, роста, голубые фишки и др.)
 - 🔍 **Анализ конкурентов** — исследование конкурентных сервисов и идеи для развития
 - 💳 **Оплата** — через ЮKassa (если настроена) или прямая генерация
+- `/admin` — админ-панель (анализ конкурентов, предложения, отчёты по категориям)
 
 ### Аналитический отчёт включает:
 1. **Текущая котировка** — цена, изменение, диапазон дня, объём, изменение за неделю
@@ -137,7 +140,12 @@ root/
             chart-generator.ts         — генерация PNG-графиков (QuickChart.io)
           competitor/
             competitor.interface.ts     — типы для анализа конкурентов
-            competitor-research.service.ts — агент исследования конкурентов
+            competitor-research.service.ts — сервис исследования конкурентов
+            competitor-agent.ts         — агент конкурентной разведки
+            competitor-suggestion-store.ts — хранилище предложений
+          analytics/
+            stock-category-store.ts     — хранилище категорий и рекомендаций
+            stock-analytics-agent.ts    — агент аналитики акций
 ```
 
 ---
@@ -165,6 +173,7 @@ cp .env.example .env
 - `YOOKASSA_RETURN_URL` — URL возврата после оплаты
 - `OPENAI_API_KEY` — ключ OpenAI (для будущей AI-интеграции)
 - `OPENAI_MODEL` — модель OpenAI (по умолчанию gpt-4o-mini)
+- `ADMIN_CHAT_ID` — Telegram ID администратора (для /admin команды)
 - `PORT` — порт HTTP-сервера (по умолчанию 3000)
 
 ### 4. Запуск в dev-режиме
@@ -210,6 +219,24 @@ POST /webhooks/yookassa
 ### Orders by telegram user
 ```http
 GET /orders/:telegramUserId
+```
+
+### Competitor Agent API
+```http
+GET  /api/competitors/report       — отчёт по конкурентам
+POST /api/competitors/analyze       — запуск анализа + генерация предложений
+GET  /api/suggestions                — список предложений (?status=new&priority=high)
+PATCH /api/suggestions/:id          — обновить статус предложения
+```
+
+### Stock Analytics Agent API
+```http
+GET  /api/stock-categories           — категории акций (?instrumentId=ru-stocks)
+GET  /api/stock-categories/:id       — категория с рекомендациями
+POST /api/stock-categories           — создать категорию
+POST /api/stock-categories/:id/recommendations  — добавить акцию
+DELETE /api/stock-categories/:catId/recommendations/:ticker — удалить акцию
+GET  /api/analytics/report           — полный отчёт по всем категориям
 ```
 
 ---

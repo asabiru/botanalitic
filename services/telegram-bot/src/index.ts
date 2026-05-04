@@ -3,7 +3,8 @@ import { Input } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { fetchLiveQuote, formatQuote } from "./quotes.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, competitorResearchService, marketDataService, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, competitorAgent, competitorResearchService, marketDataService, orderStore, sessionStore, stockAnalyticsAgent, yooKassaService } from "./app-context.js";
+import { config } from "./config.js";
 import type { AnalysisResult } from "./ai-analysis.js";
 
 async function sendAnalysisResult(ctx: any, result: AnalysisResult): Promise<void> {
@@ -14,14 +15,29 @@ async function sendAnalysisResult(ctx: any, result: AnalysisResult): Promise<voi
   }
 }
 
+function isAdmin(userId: number): boolean {
+  return config.ADMIN_CHAT_ID ? String(userId) === config.ADMIN_CHAT_ID : false;
+}
+
 function mainMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📚 Каталог аналитики", "catalog")],
     [Markup.button.callback("📊 Котировки (live)", "quotes_menu")],
+    [Markup.button.callback("📂 Категории акций", "stock_categories")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("🔍 Анализ конкурентов", "competitor_research")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
+  ]);
+}
+
+function adminMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("📊 Отчёт по конкурентам", "admin_competitor_report")],
+    [Markup.button.callback("📋 Предложения", "admin_suggestions")],
+    [Markup.button.callback("🔬 Запустить анализ", "admin_run_analysis")],
+    [Markup.button.callback("📈 Отчёт по категориям", "admin_analytics_report")],
+    [Markup.button.callback("◀️ Главное меню", "back_main")],
   ]);
 }
 
@@ -169,6 +185,176 @@ bot.action("competitor_research", async (ctx: any) => {
   } catch (err) {
     console.error("[CompetitorResearch] Error:", err);
     await ctx.reply("Ошибка при анализе конкурентов. Попробуйте позже.");
+  }
+});
+
+// === Stock Categories (public) ===
+bot.action("stock_categories", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    "Выберите рынок для просмотра категорий:",
+    Markup.inlineKeyboard([
+      [Markup.button.callback("📈 Акции РФ", "cat_instrument:ru-stocks")],
+      [Markup.button.callback("🇺🇸 Акции США", "cat_instrument:us-stocks")],
+      [Markup.button.callback("₿ Криптовалюты", "cat_instrument:crypto")],
+      [Markup.button.callback("◀️ Назад", "back_main")],
+    ])
+  );
+});
+
+bot.action(/^cat_instrument:(.+)$/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+  const instrumentId = ctx.match[1] as string;
+  const categories = stockAnalyticsAgent.listCategories(instrumentId);
+
+  if (categories.length === 0) {
+    await ctx.reply("Нет категорий для этого инструмента.");
+    return;
+  }
+
+  const text = stockAnalyticsAgent.formatInstrumentCategories(instrumentId);
+  const buttons = categories.map((cat) => [Markup.button.callback(`${cat.icon} ${cat.name}`, `cat_view:${cat.id}`)]);
+  buttons.push([Markup.button.callback("◀️ Назад к рынкам", "stock_categories")]);
+
+  await ctx.reply(text, { parse_mode: "HTML", ...Markup.inlineKeyboard(buttons) });
+});
+
+bot.action(/^cat_view:(.+)$/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+  const categoryId = ctx.match[1] as string;
+  const card = stockAnalyticsAgent.formatCategoryCard(categoryId);
+
+  if (!card) {
+    await ctx.reply("Категория не найдена.");
+    return;
+  }
+
+  const data = stockAnalyticsAgent.getCategoryWithStocks(categoryId);
+  const backInstrument = data?.category.instrumentId ?? "ru-stocks";
+
+  await ctx.reply(card, {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("◀️ Назад к категориям", `cat_instrument:${backInstrument}`)],
+    ]),
+  });
+});
+
+bot.action("back_main", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("Главное меню:", mainMenu());
+});
+
+// === Admin panel ===
+bot.command("admin", async (ctx: any) => {
+  if (!isAdmin(ctx.from.id)) {
+    await ctx.reply("Доступ запрещён.");
+    return;
+  }
+  await ctx.reply("🔧 Панель администратора:", adminMenu());
+});
+
+bot.action("admin_competitor_report", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  if (!isAdmin(ctx.from.id)) return;
+
+  await ctx.reply("⏳ Генерирую отчёт по конкурентам...");
+  try {
+    const report = await competitorResearchService.generateReport();
+    const html = competitorResearchService.formatReportHTML(report);
+
+    const MAX_MSG_LEN = 4000;
+    if (html.length <= MAX_MSG_LEN) {
+      await ctx.reply(html, { parse_mode: "HTML" });
+    } else {
+      const parts: string[] = [];
+      let current = "";
+      for (const line of html.split("\n")) {
+        if (current.length + line.length + 1 > MAX_MSG_LEN) {
+          parts.push(current);
+          current = line;
+        } else {
+          current += (current ? "\n" : "") + line;
+        }
+      }
+      if (current) parts.push(current);
+      for (const part of parts) {
+        await ctx.reply(part, { parse_mode: "HTML" });
+      }
+    }
+  } catch (err) {
+    console.error("[Admin] CompetitorReport error:", err);
+    await ctx.reply("Ошибка при генерации отчёта.");
+  }
+});
+
+bot.action("admin_suggestions", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  if (!isAdmin(ctx.from.id)) return;
+
+  const text = competitorAgent.formatSuggestionsList();
+  await ctx.reply(text, { parse_mode: "HTML" });
+});
+
+bot.action("admin_run_analysis", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  if (!isAdmin(ctx.from.id)) return;
+
+  await ctx.reply("⏳ Запускаю полный анализ конкурентов и генерацию предложений...");
+  try {
+    const { report, newSuggestions } = await competitorAgent.runFullAnalysis();
+    const text = competitorAgent.formatAnalysisReport(report, newSuggestions);
+
+    const MAX_MSG_LEN = 4000;
+    if (text.length <= MAX_MSG_LEN) {
+      await ctx.reply(text, { parse_mode: "HTML" });
+    } else {
+      const parts: string[] = [];
+      let current = "";
+      for (const line of text.split("\n")) {
+        if (current.length + line.length + 1 > MAX_MSG_LEN) {
+          parts.push(current);
+          current = line;
+        } else {
+          current += (current ? "\n" : "") + line;
+        }
+      }
+      if (current) parts.push(current);
+      for (const part of parts) {
+        await ctx.reply(part, { parse_mode: "HTML" });
+      }
+    }
+    await ctx.reply(`Анализ завершён. Новых предложений: ${newSuggestions.length}.`);
+  } catch (err) {
+    console.error("[Admin] RunAnalysis error:", err);
+    await ctx.reply("Ошибка при запуске анализа.");
+  }
+});
+
+bot.action("admin_analytics_report", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  if (!isAdmin(ctx.from.id)) return;
+
+  const text = stockAnalyticsAgent.formatFullReport();
+
+  const MAX_MSG_LEN = 4000;
+  if (text.length <= MAX_MSG_LEN) {
+    await ctx.reply(text, { parse_mode: "HTML" });
+  } else {
+    const parts: string[] = [];
+    let current = "";
+    for (const line of text.split("\n")) {
+      if (current.length + line.length + 1 > MAX_MSG_LEN) {
+        parts.push(current);
+        current = line;
+      } else {
+        current += (current ? "\n" : "") + line;
+      }
+    }
+    if (current) parts.push(current);
+    for (const part of parts) {
+      await ctx.reply(part, { parse_mode: "HTML" });
+    }
   }
 });
 
