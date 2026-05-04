@@ -7,6 +7,18 @@ const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 const testOrderStore = new OrderStore();
 const testAiService = new AiAnalysisService(null, "gpt-4o-mini", 2048);
 
+vi.mock("../config.js", () => ({
+  config: {
+    TELEGRAM_BOT_TOKEN: "test-token",
+    YOOKASSA_SHOP_ID: "test-shop",
+    YOOKASSA_SECRET_KEY: "test-secret",
+    YOOKASSA_RETURN_URL: "https://t.me",
+    OPENAI_MODEL: "gpt-4o-mini",
+    OPENAI_MAX_TOKENS: 2048,
+    LOG_LEVEL: "info"
+  }
+}));
+
 vi.mock("../app-context.js", () => ({
   bot: { telegram: { sendMessage: mockSendMessage } },
   orderStore: testOrderStore,
@@ -87,25 +99,25 @@ describe("server integration", () => {
     it("ignores non-payment.succeeded events", async () => {
       const res = await request(server, "POST", "/webhooks/yookassa", {
         event: "payment.waiting_for_capture",
-        object: { id: "pay-1" }
+        object: { id: "pay-1", status: "waiting_for_capture" }
       });
       expect(res.status).toBe(200);
       expect(res.data).toEqual({ ok: true, ignored: true });
     });
 
-    it("ignores events without object.id", async () => {
+    it("rejects events with invalid body", async () => {
       const res = await request(server, "POST", "/webhooks/yookassa", {
         event: "payment.succeeded",
         object: {}
       });
-      expect(res.status).toBe(200);
-      expect(res.data).toEqual({ ok: true, ignored: true });
+      expect(res.status).toBe(400);
+      expect(res.data).toMatchObject({ ok: false, error: "invalid_payload" });
     });
 
     it("returns 404 when order not found", async () => {
       const res = await request(server, "POST", "/webhooks/yookassa", {
         event: "payment.succeeded",
-        object: { id: "pay-unknown", metadata: {} }
+        object: { id: "pay-unknown", status: "succeeded", metadata: {} }
       });
       expect(res.status).toBe(404);
       expect(res.data).toMatchObject({ ok: false, error: "order_not_found" });
