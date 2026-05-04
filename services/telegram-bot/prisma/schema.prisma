@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  telegramId BigInt   @unique
+  username   String?
+  createdAt  DateTime @default(now())
+
+  orders Order[]
+
+  @@map("users")
+}
+
+enum OrderStatus {
+  created
+  waiting_payment
+  paid
+  delivered
+  cancelled
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  telegramUserId  BigInt
+  instrumentId    String
+  instrumentTitle String
+  amountRub       Float
+  ticker          String?
+  investorProfile String?
+  paymentId       String?
+  paymentUrl      String?
+  status          OrderStatus @default(created)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user     User?     @relation(fields: [telegramUserId], references: [telegramId])
+  payments Payment[]
+  delivery Delivery?
+
+  @@index([telegramUserId])
+  @@index([paymentId])
+  @@map("orders")
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  cancelled
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  orderId           String        @db.Uuid
+  yookassaPaymentId String        @unique
+  status            PaymentStatus @default(pending)
+  amount            Float
+  currency          String        @default("RUB")
+  createdAt         DateTime      @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+enum DeliveryStatus {
+  pending
+  delivered
+  failed
+}
+
+model Delivery {
+  id          String         @id @default(uuid()) @db.Uuid
+  orderId     String         @unique @db.Uuid
+  status      DeliveryStatus @default(pending)
+  deliveredAt DateTime?
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("deliveries")
+}

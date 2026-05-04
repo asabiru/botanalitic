@@ -1,5 +1,5 @@
 import express from "express";
-import { bot, orderStore, aiAnalysisService } from "./app-context.js";
+import { bot, orderStore, aiAnalysisService, prisma } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 
 type YooKassaWebhookEvent = {
@@ -22,7 +22,7 @@ export function createServer() {
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true });
+    res.json({ ok: true, database: prisma ? "postgres" : "file" });
   });
 
   app.post("/webhooks/yookassa", async (req, res) => {
@@ -34,10 +34,10 @@ export function createServer() {
     }
 
     const paymentId = event.object.id;
-    let order = orderStore.getByPaymentId(paymentId);
+    let order = await orderStore.getByPaymentId(paymentId);
 
     if (!order && event.object.metadata?.orderId) {
-      order = orderStore.getById(event.object.metadata.orderId);
+      order = await orderStore.getById(event.object.metadata.orderId);
     }
 
     if (!order) {
@@ -45,7 +45,7 @@ export function createServer() {
       return;
     }
 
-    orderStore.update(order.id, { status: "paid" });
+    await orderStore.update(order.id, { status: "paid" });
 
     const instrument = findInstrumentById(order.instrumentId);
 
@@ -62,19 +62,19 @@ export function createServer() {
 
     await bot.telegram.sendMessage(
       order.telegramUserId,
-      "✅ Оплата подтверждена. Отправляю ваш аналитический материал..."
+      "\u2705 \u041e\u043f\u043b\u0430\u0442\u0430 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0430. \u041e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u044e \u0432\u0430\u0448 \u0430\u043d\u0430\u043b\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b..."
     );
 
     await bot.telegram.sendMessage(order.telegramUserId, analysis, {
       parse_mode: "HTML"
     });
 
-    orderStore.update(order.id, { status: "delivered" });
+    await orderStore.update(order.id, { status: "delivered" });
 
     res.status(200).json({ ok: true });
   });
 
-  app.get("/orders/:telegramUserId", (req, res) => {
+  app.get("/orders/:telegramUserId", async (req, res) => {
     const telegramUserId = Number(req.params.telegramUserId);
 
     if (Number.isNaN(telegramUserId)) {
@@ -84,7 +84,7 @@ export function createServer() {
 
     res.json({
       ok: true,
-      orders: orderStore.listByTelegramUserId(telegramUserId)
+      orders: await orderStore.listByTelegramUserId(telegramUserId)
     });
   });
 

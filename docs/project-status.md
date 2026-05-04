@@ -68,10 +68,20 @@
 - `GET /orders/:telegramUserId`
 
 ### Хранение данных
-Сейчас есть:
+Реализовано:
 - пользовательская сессия в памяти
-- заказы в памяти
-- сохранение заказов в `tmp/orders.json`
+- заказы в памяти (file fallback через `tmp/orders.json`)
+- **PostgreSQL + Prisma ORM** (основное хранилище при наличии `DATABASE_URL`)
+
+### PostgreSQL + Prisma (Data Persistence)
+Реализовано:
+- Prisma schema с моделями: `User`, `Order`, `Payment`, `Delivery`
+- docker-compose.yml с PostgreSQL 16 (порт 5433)
+- Repository-слой: `order.repository.ts`, `user.repository.ts`
+- Абстракция `IOrderStore` для совместимости файлового и DB-хранилища
+- Обратная совместимость: если `DATABASE_URL` не задан, используется файловый fallback
+- Условная инициализация `PrismaClient` в `app-context.ts`
+- Все операции с хранилищем заказов — async-совместимы
 
 ### DevOps / Инфраструктура
 Реализовано:
@@ -110,8 +120,8 @@
 Это **не финальный production-ready продукт**.
 
 ### Ограничения:
-- нет PostgreSQL
-- нет Prisma
+- ~~нет PostgreSQL~~ — реализовано
+- ~~нет Prisma~~ — реализовано
 - нет Redis / queue
 - нет полноценной идемпотентности webhook
 - нет проверки подлинности webhook ЮKassa
@@ -129,13 +139,13 @@
 
 Ниже — список задач по приоритету.
 
-### Priority 1 — Data persistence
-Сделать:
-- PostgreSQL
-- Prisma schema
-- migrations
-- repositories
-- заменить file storage на DB
+### Priority 1 — Data persistence ✅
+Сделано:
+- ~~PostgreSQL~~ — добавлен через docker-compose.yml
+- ~~Prisma schema~~ — создана с моделями User, Order, Payment, Delivery
+- ~~migrations~~ — поддержка через `npx prisma migrate dev`
+- ~~repositories~~ — order.repository.ts, user.repository.ts
+- ~~заменить file storage на DB~~ — реализовано с обратной совместимостью
 
 ### Priority 2 — Payment reliability
 Сделать:
