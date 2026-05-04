@@ -19,6 +19,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npx prisma generate --schema=services/telegram-bot/prisma/schema.prisma
       - run: npm run typecheck
       - run: npm run build
 
@@ -34,5 +35,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npx prisma generate --schema=services/telegram-bot/prisma/schema.prisma
       - run: npm run test --workspace telegram-bot
       - run: npm run test:coverage --workspace telegram-bot

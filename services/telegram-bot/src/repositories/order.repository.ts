@@ -123,6 +123,6 @@ export class PrismaOrderRepository {
       select: { telegramUserId: true },
       distinct: ["telegramUserId"],
     });
-    return result.map((r) => Number(r.telegramUserId));
+    return result.map((r: { telegramUserId: bigint }) => Number(r.telegramUserId));
   }
 }
