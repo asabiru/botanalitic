@@ -7,6 +7,7 @@ export interface MarketQuote {
   high: number;
   low: number;
   timestamp: Date;
+  marketCap?: number;
 }
 
 export interface HistoricalBar {

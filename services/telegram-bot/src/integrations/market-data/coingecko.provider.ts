@@ -5,16 +5,21 @@ import type {
   HistoricalBar,
 } from "./provider.interface.js";
 import { MarketCache } from "../cache/market-cache.js";
+import { parsePeriodDays } from "../utils/period.js";
 
 const CG_BASE = "https://api.coingecko.com/api/v3";
 
+interface CoinGeckoCoinData {
+  usd: number;
+  usd_24h_change?: number;
+  usd_24h_vol?: number;
+  usd_market_cap?: number;
+  usd_24h_high?: number;
+  usd_24h_low?: number;
+}
+
 interface CoinGeckoPriceResponse {
-  [id: string]: {
-    usd: number;
-    usd_24h_change?: number;
-    usd_24h_vol?: number;
-    usd_market_cap?: number;
-  };
+  [id: string]: CoinGeckoCoinData;
 }
 
 interface CoinGeckoMarketChartResponse {
@@ -75,6 +80,7 @@ export class CoinGeckoProvider implements MarketDataProvider {
             vs_currencies: "usd",
             include_24hr_change: true,
             include_24hr_vol: true,
+            include_market_cap: true,
           },
           timeout: 10_000,
         },
@@ -93,9 +99,10 @@ export class CoinGeckoProvider implements MarketDataProvider {
         change,
         changePercent: changePct,
         volume: data.usd_24h_vol ?? 0,
-        high: price,
-        low: price,
+        high: data.usd_24h_high ?? price,
+        low: data.usd_24h_low ?? price,
         timestamp: new Date(),
+        marketCap: data.usd_market_cap,
       };
 
       this.cache.set(cacheKey, quote, MarketCache.ttlFor("quote"));
@@ -116,7 +123,7 @@ export class CoinGeckoProvider implements MarketDataProvider {
     if (cached) return cached;
 
     try {
-      const days = this.parsePeriod(period);
+      const days = parsePeriodDays(period);
       const resp = await axios.get<CoinGeckoMarketChartResponse>(
         `${CG_BASE}/coins/${coinId}/market_chart`,
         {
@@ -155,22 +162,4 @@ export class CoinGeckoProvider implements MarketDataProvider {
     return ["crypto"];
   }
 
-  private parsePeriod(period: string): number {
-    switch (period) {
-      case "1d":
-        return 1;
-      case "1w":
-        return 7;
-      case "1m":
-        return 30;
-      case "3m":
-        return 90;
-      case "6m":
-        return 180;
-      case "1y":
-        return 365;
-      default:
-        return 30;
-    }
-  }
 }
