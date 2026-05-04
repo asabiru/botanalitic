@@ -52,6 +52,10 @@ root/
           index.ts
           order.repository.ts
           user.repository.ts
+        middleware/
+          webhook-validation.ts
+        utils/
+          logger.ts
 ```
 
 ### Назначение модулей
@@ -136,7 +140,70 @@ npm run build
 
 ---
 
-## 4. Docker
+## 4. Webhook flow
+
+### Как работает обработка webhook ЮKassa
+
+1. ЮKassa отправляет `POST /webhooks/yookassa` при изменении статуса платежа
+2. **IP whitelist** — проверяется, что запрос пришёл с IP-адреса ЮKassa (middleware `validateWebhookIp`)
+3. **Zod validation** — тело запроса валидируется по схеме `yooKassaWebhookSchema` (middleware `validateWebhookBody`)
+4. **Идемпотентность** — если `paymentId` уже обработан (in-memory set или заказ в статусе `paid`/`delivered`), возвращается `200 OK` без повторной обработки
+5. **Обработка** — находится заказ, генерируется аналитика, отправляется в Telegram
+6. **Retry** — при ошибке отправки в Telegram повторяется до 3 раз с exponential backoff (1s, 2s)
+7. **Admin notify** — при любой ошибке обработки отправляется уведомление в `ADMIN_CHAT_ID`
+8. **Logging** — все события журналируются в JSON-формате (timestamp, event, paymentId, status)
+
+### Архитектура middleware
+
+```text
+Request → validateWebhookIp → validateWebhookBody → handler
+         (403 if bad IP)      (400 if bad body)     (business logic)
+```
+
+### Файлы
+
+| Файл | Назначение |
+|------|-----------|
+| `src/middleware/webhook-validation.ts` | IP whitelist + zod schema |
+| `src/utils/logger.ts` | Structured JSON logger |
+| `src/server.ts` | HTTP handler с retry, idempotency, admin notify |
+
+### Как тестировать webhook локально
+
+1. Запусти бот: `npm run dev`
+2. Используй [ngrok](https://ngrok.com/) или аналог для проброса порта:
+   ```bash
+   ngrok http 3000
+   ```
+3. Укажи полученный URL в настройках webhook ЮKassa: `https://xxxx.ngrok.io/webhooks/yookassa`
+4. Для ручного тестирования отправь curl:
+   ```bash
+   curl -X POST http://localhost:3000/webhooks/yookassa \
+     -H "Content-Type: application/json" \
+     -d '{
+       "event": "payment.succeeded",
+       "object": {
+         "id": "test-payment-123",
+         "status": "succeeded",
+         "metadata": {
+           "orderId": "your-order-id",
+           "telegramUserId": "123456789"
+         }
+       }
+     }'
+   ```
+5. IP whitelist пропускает `127.0.0.1` и приватные сети в dev-режиме
+
+### Переменные окружения для webhook
+
+| Переменная | Описание |
+|-----------|----------|
+| `ADMIN_CHAT_ID` | Telegram chat ID для уведомлений об ошибках |
+| `LOG_LEVEL` | Уровень логирования: `debug`, `info`, `warn`, `error` |
+
+---
+
+## 5. Docker
 
 ### Запуск через Docker Compose
 

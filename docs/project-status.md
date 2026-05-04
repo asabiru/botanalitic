@@ -93,6 +93,15 @@
 - npm-скрипты `lint`, `lint:fix`, `format` в root и telegram-bot
 - `DATABASE_URL` добавлен в `.env.example`
 
+### Webhook reliability
+Реализовано:
+- верификация IP-адресов ЮKassa (whitelist)
+- валидация тела webhook через zod-схему
+- идемпотентная обработка (повторный webhook не вызывает повторную доставку)
+- retry-логика отправки аналитики (3 попытки, exponential backoff)
+- структурированное логирование webhook events
+- уведомление админа через `ADMIN_CHAT_ID` при ошибках
+
 ### Документация
 Подготовлено:
 - `README.md`
@@ -148,12 +157,12 @@
 - ~~заменить file storage на DB~~ — реализовано с обратной совместимостью
 
 ### Priority 2 — Payment reliability
-Сделать:
-- verify webhook source
-- идемпотентная обработка webhook
-- retry-логика
-- журнал payment events
-- статусы доставки аналитики
+Сделано:
+- ✅ verify webhook source (IP whitelist + zod validation)
+- ✅ идемпотентная обработка webhook
+- ✅ retry-логика (3 попытки, exponential backoff)
+- ✅ журнал payment events (structured JSON logging)
+- ✅ статусы доставки аналитики (delivered/failed + admin notify)
 
 ### Priority 3 — Real AI analysis
 Сделать:
