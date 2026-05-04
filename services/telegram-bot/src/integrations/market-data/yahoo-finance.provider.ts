@@ -5,6 +5,7 @@ import type {
   HistoricalBar,
 } from "./provider.interface.js";
 import { MarketCache } from "../cache/market-cache.js";
+import { parsePeriodDays } from "../utils/period.js";
 
 export class YahooFinanceProvider implements MarketDataProvider {
   readonly name = "yahoo-finance";
@@ -51,7 +52,7 @@ export class YahooFinanceProvider implements MarketDataProvider {
     if (cached) return cached;
 
     try {
-      const periodDays = this.parsePeriod(period);
+      const periodDays = parsePeriodDays(period);
       const period1 = new Date();
       period1.setDate(period1.getDate() - periodDays);
 
@@ -98,22 +99,4 @@ export class YahooFinanceProvider implements MarketDataProvider {
     ];
   }
 
-  private parsePeriod(period: string): number {
-    switch (period) {
-      case "1d":
-        return 1;
-      case "1w":
-        return 7;
-      case "1m":
-        return 30;
-      case "3m":
-        return 90;
-      case "6m":
-        return 180;
-      case "1y":
-        return 365;
-      default:
-        return 30;
-    }
-  }
 }

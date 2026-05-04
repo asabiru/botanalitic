@@ -5,6 +5,7 @@ import type {
   HistoricalBar,
 } from "./provider.interface.js";
 import { MarketCache } from "../cache/market-cache.js";
+import { parsePeriodDays } from "../utils/period.js";
 
 const MOEX_BASE = "https://iss.moex.com/iss";
 
@@ -52,7 +53,7 @@ export class MoexProvider implements MarketDataProvider {
     if (cached) return cached;
 
     try {
-      const days = this.parsePeriod(period);
+      const days = parsePeriodDays(period);
       const from = new Date();
       from.setDate(from.getDate() - days);
       const fromStr = from.toISOString().slice(0, 10);
@@ -165,22 +166,4 @@ export class MoexProvider implements MarketDataProvider {
     };
   }
 
-  private parsePeriod(period: string): number {
-    switch (period) {
-      case "1d":
-        return 1;
-      case "1w":
-        return 7;
-      case "1m":
-        return 30;
-      case "3m":
-        return 90;
-      case "6m":
-        return 180;
-      case "1y":
-        return 365;
-      default:
-        return 30;
-    }
-  }
 }

@@ -49,7 +49,7 @@ bot.command("users", adminGuard, handleUsers);
 bot.command("resend", adminGuard, handleResend);
 bot.command("broadcast", adminGuard, handleBroadcast);
 
-bot.start(async (ctx: any) => {
+bot.start(async (ctx) => {
   sessionStore.clear(ctx.from.id);
 
   if (userRepository) {
@@ -79,12 +79,12 @@ bot.start(async (ctx: any) => {
   );
 });
 
-bot.action("catalog", async (ctx: any) => {
+bot.action("catalog", async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply("Выберите инструмент для анализа:", catalogKeyboard());
 });
 
-bot.action("buy_help", async (ctx: any) => {
+bot.action("buy_help", async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply(
     [
@@ -99,7 +99,7 @@ bot.action("buy_help", async (ctx: any) => {
   );
 });
 
-bot.action("my_orders", async (ctx: any) => {
+bot.action("my_orders", async (ctx) => {
   await ctx.answerCbQuery();
 
   const orders = await orderStore.listByTelegramUserId(ctx.from.id);
@@ -133,7 +133,7 @@ bot.action("my_orders", async (ctx: any) => {
   await ctx.reply(message);
 });
 
-bot.action("about", async (ctx: any) => {
+bot.action("about", async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply(
     [
@@ -152,13 +152,13 @@ bot.action("about", async (ctx: any) => {
 
 /* ── Promo code flow ─────────────────────────────────────────── */
 
-bot.action("promo_enter", async (ctx: any) => {
+bot.action("promo_enter", async (ctx) => {
   await ctx.answerCbQuery();
   sessionStore.patch(ctx.from.id, { awaitingPromoInput: true });
   await ctx.reply("Введите промокод:");
 });
 
-bot.action("promo_clear", async (ctx: any) => {
+bot.action("promo_clear", async (ctx) => {
   await ctx.answerCbQuery();
   sessionStore.patch(ctx.from.id, { appliedPromoCode: undefined });
   await ctx.reply("Промокод сброшен.", mainMenu());
@@ -166,7 +166,7 @@ bot.action("promo_clear", async (ctx: any) => {
 
 /* ── Referral system ──────────────────────────────────────────── */
 
-bot.command("referral", async (ctx: any) => {
+bot.command("referral", async (ctx) => {
   const record = referralStore.getOrCreate(ctx.from.id);
   const botUsername = config.TELEGRAM_BOT_USERNAME ?? (await bot.telegram.getMe()).username;
 
@@ -189,24 +189,24 @@ bot.command("referral", async (ctx: any) => {
 
 /* ── Legal ────────────────────────────────────────────────────── */
 
-bot.command("legal", async (ctx: any) => {
+bot.command("legal", async (ctx) => {
   await ctx.reply(LEGAL_INFO_MESSAGE, {
     parse_mode: "HTML",
-    disable_web_page_preview: true,
+    link_preview_options: { is_disabled: true },
   });
 });
 
-bot.action("legal", async (ctx: any) => {
+bot.action("legal", async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply(LEGAL_INFO_MESSAGE, {
     parse_mode: "HTML",
-    disable_web_page_preview: true,
+    link_preview_options: { is_disabled: true },
   });
 });
 
 /* ── Instrument selection ─────────────────────────────────────── */
 
-bot.action(/^instrument:(.+)$/, async (ctx: any) => {
+bot.action(/^instrument:(.+)$/, async (ctx) => {
   await ctx.answerCbQuery();
 
   const instrumentId = ctx.match[1];
@@ -254,7 +254,7 @@ bot.action(/^instrument:(.+)$/, async (ctx: any) => {
   );
 });
 
-bot.action(/^demo:(.+)$/, async (ctx: any) => {
+bot.action(/^demo:(.+)$/, async (ctx) => {
   await ctx.answerCbQuery();
 
   const instrument = findInstrumentById(ctx.match[1]);
@@ -287,7 +287,7 @@ bot.action(/^demo:(.+)$/, async (ctx: any) => {
 
 /* ── Payment with promo discount ──────────────────────────────── */
 
-bot.action(/^pay:(.+)$/, async (ctx: any) => {
+bot.action(/^pay:(.+)$/, async (ctx) => {
   await ctx.answerCbQuery();
 
   const instrument = findInstrumentById(ctx.match[1]);
@@ -330,6 +330,29 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
     originalAmountRub: originalAmount
   });
 
+  if (!yooKassaService.isConfigured) {
+    await orderStore.update(order.id, { status: "paid" });
+    await ctx.reply("⏳ Генерирую анализ...");
+
+    try {
+      const marketContext = await marketDataService.getMarketContext(instrument.id);
+      const chunks = await aiAnalysisService.generateAnalysis({
+        instrument,
+        ticker: session.ticker,
+        investorProfile: session.investorProfile,
+        marketContext
+      });
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+      }
+      await orderStore.update(order.id, { status: "delivered" });
+    } catch (err) {
+      console.error("Analysis generation error:", err);
+      await ctx.reply("Произошла ошибка при генерации анализа. Попробуйте позже.");
+    }
+    return;
+  }
+
   try {
     const payment = await yooKassaService.createPayment({
       instrument,
@@ -364,7 +387,7 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
     );
 
     await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("YooKassa createPayment error", error);
     await orderStore.update(order.id, { status: "cancelled" });
     await ctx.reply("Не удалось создать платёж. Проверьте настройки ЮKassa и попробуйте снова.");
@@ -377,7 +400,7 @@ function isAdmin(userId: number): boolean {
   return config.ADMIN_CHAT_ID ? String(userId) === config.ADMIN_CHAT_ID : false;
 }
 
-bot.command("promo_list", async (ctx: any) => {
+bot.command("promo_list", async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
     await ctx.reply("Команда доступна только администратору.");
     return;
@@ -406,7 +429,7 @@ bot.command("promo_list", async (ctx: any) => {
   await ctx.reply(message, { parse_mode: "HTML" });
 });
 
-bot.command("promo_create", async (ctx: any) => {
+bot.command("promo_create", async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
     await ctx.reply("Команда доступна только администратору.");
     return;
@@ -445,7 +468,7 @@ bot.command("promo_create", async (ctx: any) => {
   await ctx.reply(`Промокод <b>${result.code}</b> создан (скидка ${result.discountPercent}%, макс. ${result.maxUses || "безлимит"}).`, { parse_mode: "HTML" });
 });
 
-bot.command("promo_deactivate", async (ctx: any) => {
+bot.command("promo_deactivate", async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
     await ctx.reply("Команда доступна только администратору.");
     return;
@@ -470,7 +493,7 @@ bot.command("promo_deactivate", async (ctx: any) => {
 
 /* ── Text handler (ticker + promo input) ──────────────────────── */
 
-bot.on("text", async (ctx: any) => {
+bot.on("text", async (ctx) => {
   const text = ctx.message.text.trim();
   const session = sessionStore.get(ctx.from.id);
 
@@ -557,7 +580,7 @@ bot.on("text", async (ctx: any) => {
   await ctx.reply("Используйте /start, чтобы открыть меню бота.", mainMenu());
 });
 
-bot.catch((error: any) => {
+bot.catch((error: unknown) => {
   console.error("Telegram bot error", error);
 });
 

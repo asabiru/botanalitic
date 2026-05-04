@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { bot, orderStore, aiAnalysisService, marketDataService, promoStore } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 import { config } from "./config.js";
+import type { OrderRecord } from "./order-store.js";
 import { logger } from "./utils/logger.js";
 import { auditLog } from "./admin/audit-log.js";
 import {
@@ -249,8 +250,8 @@ export function createServer() {
   app.get("/admin/stats", adminApiGuard, async (_req, res) => {
     auditLog("http_stats", "api");
     const all = await orderStore.listAll();
-    const paid = all.filter((o: any) => o.status === "paid" || o.status === "delivered");
-    const totalRevenue = paid.reduce((sum: number, o: any) => sum + o.amountRub, 0);
+    const paid = all.filter((o: OrderRecord) => o.status === "paid" || o.status === "delivered");
+    const totalRevenue = paid.reduce((sum: number, o: OrderRecord) => sum + o.amountRub, 0);
     const avgCheck = paid.length > 0 ? Math.round(totalRevenue / paid.length) : 0;
     const userIds = await orderStore.uniqueUserIds();
     const uniqueUsers = userIds.length;
@@ -274,7 +275,7 @@ export function createServer() {
     const status = req.query.status as string | undefined;
     let all = await orderStore.listAll();
     if (status) {
-      all = all.filter((o: any) => o.status === status);
+      all = all.filter((o: OrderRecord) => o.status === status);
     }
     const start = (page - 1) * limit;
     const orders = all.slice(start, start + limit);

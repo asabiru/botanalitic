@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@the-convocation/twitter-scraper": "^0.22.3",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",

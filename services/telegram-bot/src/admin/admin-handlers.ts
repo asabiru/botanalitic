@@ -1,9 +1,21 @@
+import { Context } from "telegraf";
 import { orderStore, aiAnalysisService, bot } from "../app-context.js";
 import { findInstrumentById } from "../catalog.js";
+import type { OrderRecord } from "../order-store.js";
 import { auditLog } from "./audit-log.js";
 
-export async function handleAdminMenu(ctx: any): Promise<void> {
-  auditLog("admin_menu", ctx.from.id);
+function getMessageText(ctx: Context): string {
+  const msg = ctx.message;
+  if (msg && "text" in msg) return msg.text;
+  return "";
+}
+
+function getUserId(ctx: Context): number {
+  return ctx.from?.id ?? 0;
+}
+
+export async function handleAdminMenu(ctx: Context): Promise<void> {
+  auditLog("admin_menu", getUserId(ctx));
   await ctx.reply(
     [
       "<b>Admin Panel</b>",
@@ -20,8 +32,8 @@ export async function handleAdminMenu(ctx: any): Promise<void> {
   );
 }
 
-export async function handleOrders(ctx: any): Promise<void> {
-  auditLog("orders_list", ctx.from.id);
+export async function handleOrders(ctx: Context): Promise<void> {
+  auditLog("orders_list", getUserId(ctx));
   const allOrders = await orderStore.listAll();
   const orders = allOrders.slice(0, 20);
 
@@ -31,8 +43,8 @@ export async function handleOrders(ctx: any): Promise<void> {
   }
 
   const lines = orders.map(
-    (o: any) =>
-      `#${o.id.slice(0, 8)} | ${o.status} | ${o.amountRub} ₽ | ${o.createdAt.slice(0, 10)}`
+    (o: OrderRecord) =>
+      `#${o.id.slice(0, 8)} | ${o.status} | ${o.amountRub} ₽ | ${String(o.createdAt).slice(0, 10)}`
   );
 
   await ctx.reply(["<b>Последние 20 заказов:</b>", "", ...lines].join("\n"), {
@@ -46,8 +58,8 @@ function extractArg(text: string, _command: string): string {
   return text.slice(idx + 1).trim();
 }
 
-export async function handleOrderDetail(ctx: any): Promise<void> {
-  const text: string = ctx.message?.text ?? "";
+export async function handleOrderDetail(ctx: Context): Promise<void> {
+  const text = getMessageText(ctx);
   const orderId = extractArg(text, "order");
 
   if (!orderId) {
@@ -55,7 +67,7 @@ export async function handleOrderDetail(ctx: any): Promise<void> {
     return;
   }
 
-  auditLog("order_detail", ctx.from.id, `orderId=${orderId}`);
+  auditLog("order_detail", getUserId(ctx), `orderId=${orderId}`);
 
   const order = await orderStore.getById(orderId);
 
@@ -81,12 +93,12 @@ export async function handleOrderDetail(ctx: any): Promise<void> {
   );
 }
 
-export async function handleStats(ctx: any): Promise<void> {
-  auditLog("stats", ctx.from.id);
+export async function handleStats(ctx: Context): Promise<void> {
+  auditLog("stats", getUserId(ctx));
 
   const all = await orderStore.listAll();
-  const paid = all.filter((o: any) => o.status === "paid" || o.status === "delivered");
-  const totalRevenue = paid.reduce((sum: number, o: any) => sum + o.amountRub, 0);
+  const paid = all.filter((o: OrderRecord) => o.status === "paid" || o.status === "delivered");
+  const totalRevenue = paid.reduce((sum: number, o: OrderRecord) => sum + o.amountRub, 0);
   const avgCheck = paid.length > 0 ? Math.round(totalRevenue / paid.length) : 0;
   const uniqueUsers = await orderStore.uniqueUserIds();
 
@@ -104,14 +116,14 @@ export async function handleStats(ctx: any): Promise<void> {
   );
 }
 
-export async function handleUsers(ctx: any): Promise<void> {
-  auditLog("users", ctx.from.id);
+export async function handleUsers(ctx: Context): Promise<void> {
+  auditLog("users", getUserId(ctx));
   const userIds = await orderStore.uniqueUserIds();
   await ctx.reply(`Уникальных пользователей: ${userIds.length}`);
 }
 
-export async function handleResend(ctx: any): Promise<void> {
-  const text: string = ctx.message?.text ?? "";
+export async function handleResend(ctx: Context): Promise<void> {
+  const text = getMessageText(ctx);
   const orderId = extractArg(text, "resend");
 
   if (!orderId) {
@@ -119,7 +131,7 @@ export async function handleResend(ctx: any): Promise<void> {
     return;
   }
 
-  auditLog("resend", ctx.from.id, `orderId=${orderId}`);
+  auditLog("resend", getUserId(ctx), `orderId=${orderId}`);
 
   const order = await orderStore.getById(orderId);
 
@@ -161,8 +173,8 @@ export async function handleResend(ctx: any): Promise<void> {
   }
 }
 
-export async function handleBroadcast(ctx: any): Promise<void> {
-  const text: string = ctx.message?.text ?? "";
+export async function handleBroadcast(ctx: Context): Promise<void> {
+  const text = getMessageText(ctx);
   const message = extractArg(text, "broadcast");
 
   if (!message) {
@@ -170,7 +182,7 @@ export async function handleBroadcast(ctx: any): Promise<void> {
     return;
   }
 
-  auditLog("broadcast", ctx.from.id, `message=${message.slice(0, 100)}`);
+  auditLog("broadcast", getUserId(ctx), `message=${message.slice(0, 100)}`);
 
   const userIds = await orderStore.uniqueUserIds();
   let sent = 0;
