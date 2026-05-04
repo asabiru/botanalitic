@@ -252,6 +252,10 @@ const OUR_FEATURES = [
   "X.com сентимент (stub)",
   "ЮKassa оплата (опционально)",
   "Telegram бот",
+  "Алерты по уровням цены (60с polling)",
+  "Утренний дайджест рынков (08:00 МСК)",
+  "21 категория акций (152 рекомендации)",
+  "Анализ 15 конкурентов",
 ];
 
 export class CompetitorResearchService {
@@ -307,10 +311,10 @@ export class CompetitorResearchService {
       {
         feature: "Алерты по уровням цены",
         competitors: ["TradingView", "StockChangeAlertBot", "Maestro Bot"],
-        weHaveIt: false,
+        weHaveIt: true,
         priority: "high",
         effort: "medium",
-        description: "Пользователь задаёт цену — бот уведомляет при достижении",
+        description: "У нас есть — /alert ТИКЕР above|below ЦЕНА, polling каждые 60с",
       },
       {
         feature: "Экономический календарь",
@@ -355,10 +359,10 @@ export class CompetitorResearchService {
       {
         feature: "Утренний/вечерний обзор",
         competitors: ["FinamTradeBot"],
-        weHaveIt: false,
+        weHaveIt: true,
         priority: "high",
         effort: "small",
-        description: "Автоматическая ежедневная рассылка с обзором рынка",
+        description: "У нас есть — утренний дайджест в 08:00 МСК, /digest on|off",
       },
       {
         feature: "Социальный компонент",

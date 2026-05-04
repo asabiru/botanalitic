@@ -1,6 +1,6 @@
 import express from "express";
 import { Input } from "telegraf";
-import { bot, orderStore, aiAnalysisService, marketDataService, competitorAgent, competitorResearchService, stockAnalyticsAgent } from "./app-context.js";
+import { bot, orderStore, aiAnalysisService, marketDataService, competitorAgent, competitorResearchService, stockAnalyticsAgent, priceAlertStore, digestSubscriberStore, morningDigestService } from "./app-context.js";
 import { findInstrumentById } from "./catalog.js";
 import type { SuggestionStatus, SuggestionPriority } from "./integrations/competitor/competitor-suggestion-store.js";
 import type { RiskLevel, Horizon } from "./integrations/analytics/stock-category-store.js";
@@ -211,6 +211,77 @@ export function createServer() {
       recommendations: stockAnalyticsAgent.getStore().listRecommendations(cat.id),
     }));
     res.json({ ok: true, report });
+  });
+
+  // === Price Alerts API ===
+
+  app.get("/api/alerts", (req, res) => {
+    const userId = req.query.userId ? Number(req.query.userId) : undefined;
+    if (userId) {
+      res.json({ ok: true, alerts: priceAlertStore.listByUser(userId, false) });
+    } else {
+      res.json({ ok: true, alerts: priceAlertStore.listAllActive() });
+    }
+  });
+
+  app.post("/api/alerts", (req, res) => {
+    const { telegramUserId, instrumentId, ticker, targetPrice, direction, label } = req.body as {
+      telegramUserId?: number; instrumentId?: string; ticker?: string;
+      targetPrice?: number; direction?: string; label?: string;
+    };
+    if (!telegramUserId || !instrumentId || !ticker || !targetPrice || !direction) {
+      res.status(400).json({ ok: false, error: "missing_required_fields" });
+      return;
+    }
+    if (direction !== "above" && direction !== "below") {
+      res.status(400).json({ ok: false, error: "direction_must_be_above_or_below" });
+      return;
+    }
+    const alert = priceAlertStore.add({
+      telegramUserId,
+      instrumentId,
+      ticker,
+      targetPrice,
+      direction,
+      label: label ?? ticker,
+    });
+    res.status(201).json({ ok: true, alert });
+  });
+
+  app.delete("/api/alerts/:id", (req, res) => {
+    const removed = priceAlertStore.deactivate(req.params.id);
+    if (!removed) {
+      res.status(404).json({ ok: false, error: "alert_not_found" });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  // === Digest API ===
+
+  app.get("/api/digest/subscribers", (_req, res) => {
+    const counts = digestSubscriberStore.count();
+    res.json({ ok: true, ...counts, subscribers: digestSubscriberStore.listActive() });
+  });
+
+  app.post("/api/digest/subscribe", (req, res) => {
+    const { telegramUserId } = req.body as { telegramUserId?: number };
+    if (!telegramUserId) {
+      res.status(400).json({ ok: false, error: "telegramUserId_required" });
+      return;
+    }
+    const sub = digestSubscriberStore.subscribe(telegramUserId);
+    res.json({ ok: true, subscriber: sub });
+  });
+
+  app.post("/api/digest/preview", async (_req, res) => {
+    try {
+      const preview = await morningDigestService.generateDigest();
+      res.json({ ok: true, preview });
+    } catch (err) {
+      console.error("[API] digest preview error", err);
+      res.status(500).json({ ok: false, error: "preview_failed" });
+    }
   });
 
   return app;

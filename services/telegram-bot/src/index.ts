@@ -3,7 +3,8 @@ import { Input } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { fetchLiveQuote, formatQuote } from "./quotes.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, competitorAgent, competitorResearchService, marketDataService, orderStore, sessionStore, stockAnalyticsAgent, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, competitorAgent, competitorResearchService, digestSubscriberStore, marketDataService, morningDigestService, orderStore, priceAlertService, priceAlertStore, sessionStore, stockAnalyticsAgent, yooKassaService } from "./app-context.js";
+import type { AlertDirection } from "./integrations/alerts/price-alert-store.js";
 import { config } from "./config.js";
 import type { AnalysisResult } from "./ai-analysis.js";
 
@@ -22,6 +23,8 @@ function isAdmin(userId: number): boolean {
 function mainMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("📊 Аналитика", "analytics_hub")],
+    [Markup.button.callback("🔔 Алерты по ценам", "alerts_menu")],
+    [Markup.button.callback("☀️ Утренний дайджест", "digest_menu")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
@@ -625,6 +628,253 @@ bot.action(/^pay:(.+)$/, async (ctx: any) => {
   }
 });
 
+// === Price Alerts ===
+
+bot.action("alerts_menu", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  const text = priceAlertService.formatAlertsList(ctx.from.id);
+  await ctx.reply(text, {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("➕ Как добавить алерт", "alert_help")],
+      [Markup.button.callback("◀️ Главное меню", "back_main")],
+    ]),
+  });
+});
+
+bot.action("alert_help", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    [
+      "<b>🔔 Как настроить алерт по цене</b>",
+      "",
+      "Отправьте команду в формате:",
+      "<code>/alert ТИКЕР above ЦЕНА</code> — уведомить когда цена вырастет выше",
+      "<code>/alert ТИКЕР below ЦЕНА</code> — уведомить когда цена упадёт ниже",
+      "",
+      "Примеры:",
+      "<code>/alert SBER above 300</code>",
+      "<code>/alert BTC below 50000</code>",
+      "<code>/alert GOLD above 3000</code>",
+      "<code>/alert LKOH below 6500</code>",
+      "",
+      "Бот проверяет цены каждые 60 секунд.",
+      "",
+      "Для отмены алерта: <code>/alert cancel</code>",
+      "Для просмотра: <code>/alert list</code>",
+    ].join("\n"),
+    { parse_mode: "HTML" }
+  );
+});
+
+bot.command("alert", async (ctx: any) => {
+  const args = ctx.message.text.replace(/^\/alert\s*/i, "").trim().split(/\s+/);
+
+  if (args.length === 0 || args[0] === "") {
+    const text = priceAlertService.formatAlertsList(ctx.from.id);
+    await ctx.reply(text, { parse_mode: "HTML" });
+    return;
+  }
+
+  if (args[0] === "list") {
+    const text = priceAlertService.formatAlertsList(ctx.from.id);
+    await ctx.reply(text, { parse_mode: "HTML" });
+    return;
+  }
+
+  if (args[0] === "cancel") {
+    const alerts = priceAlertStore.listByUser(ctx.from.id);
+    if (alerts.length === 0) {
+      await ctx.reply("У вас нет активных алертов.");
+      return;
+    }
+
+    let cancelled = 0;
+    for (const a of alerts) {
+      if (priceAlertStore.deactivate(a.id)) cancelled++;
+    }
+    await ctx.reply(`Отменено ${cancelled} алертов.`);
+    return;
+  }
+
+  if (args.length < 3) {
+    await ctx.reply(
+      "Формат: /alert ТИКЕР above|below ЦЕНА\nПример: /alert SBER above 300",
+    );
+    return;
+  }
+
+  const ticker = args[0].toUpperCase();
+  const direction = args[1].toLowerCase();
+  const price = parseFloat(args[2]);
+
+  if (direction !== "above" && direction !== "below") {
+    await ctx.reply("Направление должно быть 'above' или 'below'.\nПример: /alert SBER above 300");
+    return;
+  }
+
+  if (isNaN(price) || price <= 0) {
+    await ctx.reply("Цена должна быть положительным числом.\nПример: /alert SBER above 300");
+    return;
+  }
+
+  const tickerToInstrument: Record<string, string> = {
+    SBER: "ru-stocks", LKOH: "ru-stocks", GAZP: "ru-stocks", ROSN: "ru-stocks",
+    YDEX: "ru-stocks", VTBR: "ru-stocks", GMKN: "ru-stocks", NVTK: "ru-stocks",
+    TATN: "ru-stocks", OZON: "ru-stocks", POSI: "ru-stocks", MTSS: "ru-stocks",
+    NLMK: "ru-stocks", CHMF: "ru-stocks", MAGN: "ru-stocks", PLZL: "ru-stocks",
+    MOEX: "ru-stocks", TCSG: "ru-stocks", FIVE: "ru-stocks", MGNT: "ru-stocks",
+    ALRS: "ru-stocks", SNGS: "ru-stocks", RUAL: "ru-stocks", PIKK: "ru-stocks",
+    AFKS: "ru-stocks", BSPB: "ru-stocks", VKCO: "ru-stocks", HEAD: "ru-stocks",
+    IRAO: "ru-stocks", RTKM: "ru-stocks", ASTR: "ru-stocks", PHOR: "ru-stocks",
+    FLOT: "ru-stocks", CBOM: "ru-stocks", POLY: "ru-stocks", WUSH: "ru-stocks",
+
+    AAPL: "us-stocks", MSFT: "us-stocks", GOOGL: "us-stocks", AMZN: "us-stocks",
+    META: "us-stocks", TSLA: "us-stocks", NVDA: "us-stocks", AMD: "us-stocks",
+    NFLX: "us-stocks", CRM: "us-stocks", ORCL: "us-stocks", ADBE: "us-stocks",
+    JNJ: "us-stocks", KO: "us-stocks", PG: "us-stocks", PEP: "us-stocks",
+    MCD: "us-stocks", WMT: "us-stocks", XOM: "us-stocks", CVX: "us-stocks",
+    PLTR: "us-stocks", SHOP: "us-stocks", UBER: "us-stocks", ABNB: "us-stocks",
+    COIN: "us-stocks", JPM: "us-stocks", V: "us-stocks", MA: "us-stocks",
+    BAC: "us-stocks", GS: "us-stocks", LLY: "us-stocks", UNH: "us-stocks",
+    PFE: "us-stocks", ABBV: "us-stocks", MRK: "us-stocks", AVGO: "us-stocks",
+    TSM: "us-stocks", INTC: "us-stocks", ARM: "us-stocks", BA: "us-stocks",
+
+    BTC: "crypto", ETH: "crypto", SOL: "crypto", ADA: "crypto",
+    AVAX: "crypto", DOT: "crypto", DOGE: "crypto", SHIB: "crypto",
+    LINK: "crypto", UNI: "crypto", AAVE: "crypto", TON: "crypto",
+    NEAR: "crypto", APT: "crypto", SUI: "crypto", PEPE: "crypto",
+
+    GOLD: "gold", SILVER: "silver", OIL: "oil", GAS: "gas",
+  };
+
+  const instrumentId = tickerToInstrument[ticker] ?? "us-stocks";
+  const dirLabel = direction === "above" ? "выше" : "ниже";
+
+  const alert = priceAlertStore.add({
+    telegramUserId: ctx.from.id,
+    instrumentId,
+    ticker,
+    targetPrice: price,
+    direction: direction as AlertDirection,
+    label: ticker,
+  });
+
+  await ctx.reply(
+    [
+      `🔔 Алерт создан!`,
+      "",
+      `<b>${ticker}</b> — уведомить когда цена будет ${dirLabel} <b>${price}</b>`,
+      "",
+      "Бот проверяет цены каждые 60 секунд.",
+      "Отменить все: /alert cancel",
+    ].join("\n"),
+    { parse_mode: "HTML" }
+  );
+});
+
+// === Morning Digest ===
+
+bot.action("digest_menu", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  const isSubscribed = digestSubscriberStore.isSubscribed(ctx.from.id);
+  const counts = digestSubscriberStore.count();
+
+  const lines: string[] = [
+    "<b>☀️ Утренний дайджест рынков</b>",
+    "",
+    "Ежедневная рассылка в <b>08:00 МСК</b> с обзором ключевых рынков:",
+    "• USD/RUB, CNY/RUB",
+    "• Нефть Brent, Золото",
+    "• Индекс Мосбиржи",
+    "• Bitcoin, EUR/USD",
+    "",
+    `Ваш статус: ${isSubscribed ? "✅ Подписан" : "❌ Не подписан"}`,
+    `Подписчиков: ${counts.active}`,
+  ];
+
+  const buttons = isSubscribed
+    ? [[Markup.button.callback("❌ Отписаться", "digest_unsubscribe")], [Markup.button.callback("👁 Посмотреть пример", "digest_preview")]]
+    : [[Markup.button.callback("✅ Подписаться", "digest_subscribe")], [Markup.button.callback("👁 Посмотреть пример", "digest_preview")]];
+
+  buttons.push([Markup.button.callback("◀️ Главное меню", "back_main")]);
+
+  await ctx.reply(lines.join("\n"), {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard(buttons),
+  });
+});
+
+bot.action("digest_subscribe", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  digestSubscriberStore.subscribe(ctx.from.id);
+  await ctx.reply(
+    [
+      "✅ Вы подписаны на утренний дайджест!",
+      "",
+      "Каждый день в 08:00 МСК вы будете получать обзор рынков.",
+      "Отписаться: /digest off",
+    ].join("\n"),
+  );
+});
+
+bot.action("digest_unsubscribe", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  digestSubscriberStore.unsubscribe(ctx.from.id);
+  await ctx.reply("❌ Вы отписались от утреннего дайджеста.");
+});
+
+bot.action("digest_preview", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ Генерирую превью дайджеста...");
+  try {
+    const preview = await morningDigestService.generateDigest();
+    await ctx.reply(preview, { parse_mode: "HTML" });
+  } catch (err) {
+    console.error("[DigestPreview] Error:", err);
+    await ctx.reply("Ошибка при генерации дайджеста. Попробуйте позже.");
+  }
+});
+
+bot.command("digest", async (ctx: any) => {
+  const arg = ctx.message.text.replace(/^\/digest\s*/i, "").trim().toLowerCase();
+
+  if (arg === "off" || arg === "stop" || arg === "unsubscribe") {
+    digestSubscriberStore.unsubscribe(ctx.from.id);
+    await ctx.reply("❌ Вы отписались от утреннего дайджеста.");
+    return;
+  }
+
+  if (arg === "on" || arg === "start" || arg === "subscribe" || arg === "") {
+    digestSubscriberStore.subscribe(ctx.from.id);
+    await ctx.reply(
+      [
+        "✅ Вы подписаны на утренний дайджест!",
+        "",
+        "Каждый день в 08:00 МСК вы будете получать обзор ключевых рынков.",
+        "Отписаться: /digest off",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  if (arg === "preview") {
+    await ctx.reply("⏳ Генерирую превью...");
+    try {
+      const preview = await morningDigestService.generateDigest();
+      await ctx.reply(preview, { parse_mode: "HTML" });
+    } catch (err) {
+      console.error("[DigestPreview] Error:", err);
+      await ctx.reply("Ошибка при генерации дайджеста.");
+    }
+    return;
+  }
+
+  await ctx.reply("Используйте: /digest on | off | preview");
+});
+
+// === Text handler ===
+
 bot.on("text", async (ctx: any) => {
   const text = ctx.message.text.trim();
   const session = sessionStore.get(ctx.from.id);
@@ -658,7 +908,17 @@ app.listen(port, () => {
 
 bot.launch().then(() => {
   console.log("AI Finance bot started");
+  priceAlertService.start();
+  morningDigestService.start();
 });
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+process.once("SIGINT", () => {
+  priceAlertService.stop();
+  morningDigestService.stop();
+  bot.stop("SIGINT");
+});
+process.once("SIGTERM", () => {
+  priceAlertService.stop();
+  morningDigestService.stop();
+  bot.stop("SIGTERM");
+});
