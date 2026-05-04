@@ -12,8 +12,17 @@ import {
   YooKassaWebhookEvent
 } from "./middleware/webhook-validation.js";
 
-/** Set of paymentIds that have already been fully processed */
-const processedPayments = new Set<string>();
+/** Map of paymentIds → timestamp for idempotency with TTL eviction */
+const processedPayments = new Map<string, number>();
+const PROCESSED_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function cleanupProcessedPayments(): void {
+  const now = Date.now();
+  for (const [id, ts] of processedPayments) {
+    if (now - ts > PROCESSED_TTL_MS) processedPayments.delete(id);
+  }
+}
+setInterval(cleanupProcessedPayments, 10 * 60 * 1000); // every 10 min
 
 /**
  * Send a message to admin chat (if configured) about a webhook processing error
@@ -92,13 +101,13 @@ export function createServer() {
         return;
       }
 
-      // Only skip re-processing for fully delivered orders
+      // Skip re-processing for orders already paid or delivered
       const existingOrder = await orderStore.getByPaymentId(paymentId);
       if (
         existingOrder &&
-        existingOrder.status === "delivered"
+        (existingOrder.status === "delivered" || existingOrder.status === "paid")
       ) {
-        processedPayments.add(paymentId);
+        processedPayments.set(paymentId, Date.now());
         logger.info("Payment already processed (order status check)", {
           paymentId,
           orderId: existingOrder.id,
@@ -109,7 +118,7 @@ export function createServer() {
       }
 
       // Mark as in-progress immediately to prevent concurrent duplicates
-      processedPayments.add(paymentId);
+      processedPayments.set(paymentId, Date.now());
       let delivered = false;
 
       try {
@@ -168,17 +177,15 @@ export function createServer() {
           );
         }
 
-        // Retry only the analysis delivery with exponential backoff
-        await withRetry(
-          async () => {
-            for (const chunk of analysis) {
-              await bot.telegram.sendMessage(order.telegramUserId, chunk, {
-                parse_mode: "HTML"
-              });
-            }
-          },
-          `telegram_send:${paymentId}`
-        );
+        // Retry each chunk individually to avoid re-sending already-delivered ones
+        for (let i = 0; i < analysis.length; i++) {
+          await withRetry(
+            () => bot.telegram.sendMessage(order.telegramUserId, analysis[i], {
+              parse_mode: "HTML"
+            }),
+            `telegram_send:${paymentId}:chunk${i}`
+          );
+        }
 
         await orderStore.update(order.id, { status: "delivered" });
         delivered = true;

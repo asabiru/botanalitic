@@ -127,6 +127,12 @@
       return document.getElementById('apiKeyInput').value.trim();
     }
 
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = String(str);
+      return d.innerHTML;
+    }
+
     function getBaseUrl() {
       return window.location.origin;
     }
@@ -177,18 +183,19 @@
             const tr = document.createElement('tr');
             tr.className = 'border-b border-gray-800 hover:bg-gray-800/50';
             tr.innerHTML = `
-              <td class="py-2 px-3 font-mono text-xs">${o.id.slice(0, 8)}</td>
-              <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-xs ${statusColor(o.status)}">${o.status}</span></td>
-              <td class="py-2 px-3">${o.instrumentTitle}</td>
-              <td class="py-2 px-3">${o.amountRub} \u20BD</td>
-              <td class="py-2 px-3">${o.telegramUserId}</td>
-              <td class="py-2 px-3">${o.createdAt.slice(0, 10)}</td>
+              <td class="py-2 px-3 font-mono text-xs">${esc(o.id.slice(0, 8))}</td>
+              <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-xs ${statusColor(o.status)}">${esc(o.status)}</span></td>
+              <td class="py-2 px-3">${esc(o.instrumentTitle)}</td>
+              <td class="py-2 px-3">${esc(o.amountRub)} \u20BD</td>
+              <td class="py-2 px-3">${esc(o.telegramUserId)}</td>
+              <td class="py-2 px-3">${esc(o.createdAt.slice(0, 10))}</td>
               <td class="py-2 px-3">
-                <button onclick="resendOrder('${o.id}')" class="bg-yellow-600 hover:bg-yellow-700 text-xs px-2 py-1 rounded">
+                <button data-order-id="${esc(o.id)}" class="resend-btn bg-yellow-600 hover:bg-yellow-700 text-xs px-2 py-1 rounded">
                   Перевыдать
                 </button>
               </td>
             `;
+            tr.querySelector('.resend-btn').addEventListener('click', () => resendOrder(o.id));
             tbody.appendChild(tr);
           }
         }
