@@ -57,6 +57,7 @@ export class YahooFinanceProvider implements MarketDataProvider {
 
       const rows = await this.yf.historical(symbol, {
         period1,
+        period2: new Date(),
         interval: "1d",
       });
 

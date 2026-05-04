@@ -3,7 +3,7 @@ import { Input } from "telegraf";
 import { findInstrumentById, instrumentCatalog } from "./catalog.js";
 import { fetchLiveQuote, formatQuote } from "./quotes.js";
 import { createServer } from "./server.js";
-import { aiAnalysisService, bot, marketDataService, orderStore, sessionStore, yooKassaService } from "./app-context.js";
+import { aiAnalysisService, bot, competitorResearchService, marketDataService, orderStore, sessionStore, yooKassaService } from "./app-context.js";
 import type { AnalysisResult } from "./ai-analysis.js";
 
 async function sendAnalysisResult(ctx: any, result: AnalysisResult): Promise<void> {
@@ -20,6 +20,7 @@ function mainMenu() {
     [Markup.button.callback("📊 Котировки (live)", "quotes_menu")],
     [Markup.button.callback("💳 Как купить", "buy_help")],
     [Markup.button.callback("🧾 Мои заявки", "my_orders")],
+    [Markup.button.callback("🔍 Анализ конкурентов", "competitor_research")],
     [Markup.button.callback("ℹ️ О сервисе", "about")]
   ]);
 }
@@ -135,6 +136,40 @@ bot.action("about", async (ctx: any) => {
       "• идея по горизонту"
     ].join("\n")
   );
+});
+
+bot.action("competitor_research", async (ctx: any) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ Анализирую конкурентов и тренды...");
+
+  try {
+    const report = await competitorResearchService.generateReport();
+    const html = competitorResearchService.formatReportHTML(report);
+
+    const MAX_MSG_LEN = 4000;
+    if (html.length <= MAX_MSG_LEN) {
+      await ctx.reply(html, { parse_mode: "HTML" });
+    } else {
+      const parts: string[] = [];
+      let current = "";
+      for (const line of html.split("\n")) {
+        if (current.length + line.length + 1 > MAX_MSG_LEN) {
+          parts.push(current);
+          current = line;
+        } else {
+          current += (current ? "\n" : "") + line;
+        }
+      }
+      if (current) parts.push(current);
+
+      for (const part of parts) {
+        await ctx.reply(part, { parse_mode: "HTML" });
+      }
+    }
+  } catch (err) {
+    console.error("[CompetitorResearch] Error:", err);
+    await ctx.reply("Ошибка при анализе конкурентов. Попробуйте позже.");
+  }
 });
 
 bot.action("quotes_menu", async (ctx: any) => {

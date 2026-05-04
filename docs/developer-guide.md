@@ -63,6 +63,9 @@ root/
             x-sentiment.provider.ts
           chart/
             chart-generator.ts    — QuickChart.io (price + volume charts)
+          competitor/
+            competitor.interface.ts     — типы для анализа конкурентов
+            competitor-research.service.ts — агент исследования конкурентов
 ```
 
 ### Назначение модулей
@@ -105,6 +108,16 @@ root/
 Генерация PNG-графиков через QuickChart.io API:
 - `generatePriceChart()` — линейный график close/high/low
 - `generateVolumeChart()` — столбчатый график объёмов (зелёный/красный)
+
+#### `integrations/competitor/competitor-research.service.ts`
+Агент-исследователь конкурентов. Класс `CompetitorResearchService`:
+- `generateReport()` — генерирует полный отчёт: профили конкурентов, матрица фич, идеи для развития
+- `formatReportHTML()` — форматирует отчёт в Telegram HTML
+- `scanTrends()` — парсит RSS-ленты крипто/финтех новостей и выделяет тренды
+- Анализирует 7 конкурентов: StockChangeAlertBot, FinamTradeBot, Trader.dev, Trojan Bot, Maestro Bot, TradingView, Investing.com
+- Строит матрицу фич (что есть у конкурентов, чего нет у нас)
+- Генерирует идеи с приоритетами (high/medium/low) и категориями (feature/ux/monetization/marketing/data)
+- Кэширование: 24 часа
 
 ---
 
@@ -198,21 +211,15 @@ npm run build
 
 ## 10. Дальнейшее развитие
 
-### Приоритет 1 — Реальный AI
-- Подключить OpenAI для генерации текстовой аналитики на основе MarketContext
-- Шаблоны промптов по типам активов
-- Structured output от модели
+Полный план с 9 этапами: [`docs/roadmap.md`](roadmap.md)
 
-### Приоритет 2 — X.com API
-- Получить API key Twitter/X
-- Реализовать реальный сентимент-анализ вместо stub
-- Анализ ключевых слов, тональности постов
-
-### Приоритет 3 — Persistence
-- PostgreSQL + Prisma
-- Сохранение заказов, пользователей, истории анализов
-
-### Приоритет 4 — Подписки
-- Автоматическая рассылка котировок
-- Утренний/вечерний обзор рынка
-- Алерты по уровням
+Краткий обзор приоритетов:
+1. **OpenAI интеграция** — генерация аналитики через GPT
+2. **X.com Sentiment API** — реальный сентимент вместо stub
+3. **Persistence** — PostgreSQL + Prisma
+4. **Подписки и алерты** — утренний/вечерний обзор, алерты по уровням
+5. **Улучшение графиков** — SMA, Bollinger, свечи
+6. **Миграция yahoo-finance2** — `historical()` → `chart()`
+7. **Качество кода** — тесты, CI/CD, ESLint
+8. **Production deployment** — Docker, мониторинг
+9. **Коммерческий контур** — тарифы, реферальная программа, админ-панель
