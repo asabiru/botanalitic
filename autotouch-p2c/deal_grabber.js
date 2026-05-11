@@ -245,49 +245,60 @@ function waitForDealResult() {
 }
 
 // ── Extract Payment Info ─────────────────────────────────
+// After grabbing a deal, the P2C bot shows a payment URL.
+// We extract it and tap it to open Ozon Bank.
 
 function extractPaymentInfo(screenText) {
   const info = {
     amount: 0,
     currency: 'RUB',
     paymentUrl: null,
-    cardNumber: null,
-    bankName: null,
-    recipientName: null,
-    comment: null,
-    timeLimit: null,
   };
 
-  const rubMatch = screenText.match(/([\d\s,.]+)\s*(RUB|₽|руб)/i);
-  if (rubMatch) {
-    info.amount = parseFloat(rubMatch[1].replace(/\s/g, '').replace(',', '.'));
-  }
-
+  // Extract payment URL (the bot provides this after deal capture)
   const urlMatch = screenText.match(/(https?:\/\/[^\s]+)/i);
   if (urlMatch) {
     info.paymentUrl = urlMatch[1];
   }
 
-  const cardMatch = screenText.match(/(\d{4}\s?\d{4}\s?\d{4}\s?\d{4})/);
-  if (cardMatch) {
-    info.cardNumber = cardMatch[1].replace(/\s/g, '');
-  }
-
-  if (screenText.toLowerCase().includes('ozon') || screenText.toLowerCase().includes('озон')) {
-    info.bankName = 'Ozon Bank';
-  }
-
-  const timeMatch = screenText.match(/(\d+)\s*(мин|min|минут)/i);
-  if (timeMatch) {
-    info.timeLimit = parseInt(timeMatch[1]);
-  }
-
-  const commentMatch = screenText.match(/(?:комментарий|comment|memo)[:\s]*([^\n]+)/i);
-  if (commentMatch) {
-    info.comment = commentMatch[1].trim();
+  // Extract amount for logging
+  const rubMatch = screenText.match(/([\d\s,.]+)\s*(RUB|₽|руб)/i);
+  if (rubMatch) {
+    info.amount = parseFloat(rubMatch[1].replace(/\s/g, '').replace(',', '.'));
   }
 
   return info;
+}
+
+// ── Find and Tap Payment Link ────────────────────────────
+// If extractPaymentInfo didn't get the URL via OCR,
+// try to find and tap a clickable link on screen.
+
+function tapPaymentLink() {
+  // Look for blue/underlined link text (typical in Telegram)
+  const linkKeywords = ['Оплатить', 'Перейти к оплате', 'Pay', 'ozon', 'payment'];
+  for (const keyword of linkKeywords) {
+    const pos = findTextPositionOnScreen(keyword, null);
+    if (pos.found) {
+      logInfo(`Payment link found: "${keyword}" at (${pos.x}, ${pos.y})`);
+      burstTap(pos.x, pos.y);
+      return true;
+    }
+  }
+
+  // Look for URL-like text on screen
+  const fullText = ocrFullText(null);
+  const urlMatch = fullText.match(/(https?:\/\/[^\s]+)/i);
+  if (urlMatch) {
+    // URL found in text — find its position
+    const urlPos = findTextPositionOnScreen(urlMatch[1].substring(0, 20), null);
+    if (urlPos.found) {
+      burstTap(urlPos.x, urlPos.y);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // ── Batch Grab (shotgun approach) ────────────────────────
@@ -350,6 +361,7 @@ module.exports = {
   tapConfirmButton,
   waitForDealResult,
   extractPaymentInfo,
+  tapPaymentLink,
   clearCache,
   getStats,
 };

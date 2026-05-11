@@ -13,7 +13,7 @@ const {
   notifyUser, setLogLevel,
 } = require('./utils');
 const { monitorDeals, refreshDealList } = require('./p2c_monitor');
-const { grabDeal, grabDealTurbo, shotgunGrab, getStats: getGrabStats, clearCache } = require('./deal_grabber');
+const { grabDeal, grabDealTurbo, shotgunGrab, tapPaymentLink, getStats: getGrabStats, clearCache } = require('./deal_grabber');
 const { processPayment, returnToTelegram, getPaymentStats } = require('./ozon_pay');
 
 const { usleep } = at;
@@ -51,9 +51,13 @@ function handleNewDeal(deal) {
   sessionDeals++;
   logInfo(`Deal #${sessionDeals} grabbed in ${grabResult.elapsed}ms`);
 
-  if (grabResult.paymentInfo) {
-    const paymentResult = processPayment(grabResult.paymentInfo);
+  // After grabbing, the P2C bot shows a payment link.
+  // Either we extracted the URL via OCR, or we tap the link on screen.
+  let paymentInfo = grabResult.paymentInfo;
 
+  if (paymentInfo && paymentInfo.paymentUrl) {
+    // URL extracted from OCR — open it directly
+    const paymentResult = processPayment(paymentInfo);
     if (paymentResult.success) {
       sessionPayments++;
       logInfo(`Payment #${sessionPayments} done`);
@@ -61,14 +65,27 @@ function handleNewDeal(deal) {
       logError(`Payment failed: ${paymentResult.reason}`);
       notifyUser(`Payment failed: ${paymentResult.reason}. Complete manually.`);
     }
-
-    returnToTelegram();
-    usleep(T().pageTransitionUs);
-    refreshDealList();
   } else {
-    logWarn('No payment info — manual action required');
-    notifyUser('Deal grabbed! Complete payment manually.');
+    // No URL extracted — try to find and tap the payment link on screen
+    logInfo('No URL in OCR — tapping payment link on screen...');
+    const tapped = tapPaymentLink();
+    if (tapped) {
+      // Link tapped — Ozon Bank should open, wait and confirm
+      usleep(T().appSwitchDelayUs);
+      const paymentResult = processPayment({ paymentUrl: '__already_opened__' });
+      if (paymentResult.success) {
+        sessionPayments++;
+        logInfo(`Payment #${sessionPayments} done (via link tap)`);
+      }
+    } else {
+      logWarn('No payment link found — manual action required');
+      notifyUser('Deal grabbed! Tap the payment link manually.');
+    }
   }
+
+  returnToTelegram();
+  usleep(T().pageTransitionUs);
+  refreshDealList();
 
   return true;
 }
