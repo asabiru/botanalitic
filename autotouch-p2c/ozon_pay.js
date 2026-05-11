@@ -7,8 +7,9 @@
 
 const CONFIG = require('./config');
 const {
+  T,
   logDebug, logInfo, logWarn, logError,
-  tap, tapFast,
+  tap, tapFast, burstTap,
   ocrFullText, findTextOnScreen, findTextPositionOnScreen,
   waitForText, waitForTextPosition,
   openOzonBank, openURLInApp, isAppForeground,
@@ -59,7 +60,7 @@ function payViaURL(paymentInfo) {
   logInfo(`Opening payment URL: ${paymentInfo.paymentUrl}`);
 
   openURLInApp(paymentInfo.paymentUrl);
-  usleep(CONFIG.timing.appSwitchDelayUs * 2);
+  usleep(T().appSwitchDelayUs * 2);
 
   // Wait for Ozon Bank to open and show payment screen
   const loaded = waitForPaymentScreen();
@@ -85,7 +86,7 @@ function payViaCardTransfer(paymentInfo) {
   logInfo(`Starting card transfer to: ${paymentInfo.cardNumber}`);
 
   openOzonBank();
-  usleep(CONFIG.timing.appSwitchDelayUs);
+  usleep(T().appSwitchDelayUs);
 
   // Navigate to transfers
   const transferBtn = findTextPositionOnScreen('Перевод', null);
@@ -101,7 +102,7 @@ function payViaCardTransfer(paymentInfo) {
     tap(transferBtn.x, transferBtn.y);
   }
 
-  usleep(CONFIG.timing.pageTransitionUs);
+  usleep(T().pageTransitionUs);
 
   // Select "By card number" option
   const byCardBtn = findTextPositionOnScreen('По номеру карты', null);
@@ -117,36 +118,36 @@ function payViaCardTransfer(paymentInfo) {
     tap(byCardBtn.x, byCardBtn.y);
   }
 
-  usleep(CONFIG.timing.pageTransitionUs);
+  usleep(T().pageTransitionUs);
 
   // Enter card number
   const cardField = findTextPositionOnScreen('Номер карты', null);
   if (cardField.found) {
     tap(cardField.x, cardField.y + 40);
-    usleep(CONFIG.timing.betweenTapsUs);
+    usleep(T().betweenTapsUs);
   }
 
   inputText(paymentInfo.cardNumber);
-  usleep(CONFIG.timing.pageTransitionUs);
+  usleep(T().pageTransitionUs);
 
   // Enter amount
   const amountField = findTextPositionOnScreen('Сумма', null);
   if (amountField.found) {
     tap(amountField.x, amountField.y + 40);
-    usleep(CONFIG.timing.betweenTapsUs);
+    usleep(T().betweenTapsUs);
   }
 
   inputText(String(paymentInfo.amount));
-  usleep(CONFIG.timing.betweenTapsUs);
+  usleep(T().betweenTapsUs);
 
   // Enter comment if needed
   if (paymentInfo.comment) {
     const commentField = findTextPositionOnScreen('Комментарий', null);
     if (commentField.found) {
       tap(commentField.x, commentField.y + 40);
-      usleep(CONFIG.timing.betweenTapsUs);
+      usleep(T().betweenTapsUs);
       inputText(paymentInfo.comment);
-      usleep(CONFIG.timing.betweenTapsUs);
+      usleep(T().betweenTapsUs);
     }
   }
 
@@ -163,7 +164,7 @@ function waitForPaymentScreen() {
   const result = waitForText(
     payKeywords,
     null,
-    CONFIG.timing.paymentPageTimeoutUs
+    T().paymentPageTimeoutUs
   );
 
   if (result.found) {
@@ -181,7 +182,7 @@ function waitForPaymentScreen() {
 
   if (colorFound) {
     logInfo('Ozon Bank screen detected by color');
-    usleep(CONFIG.timing.pageTransitionUs);
+    usleep(T().pageTransitionUs);
     return true;
   }
 
@@ -211,32 +212,27 @@ function verifyPaymentAmount(expectedAmount) {
 function confirmPayment() {
   logInfo('Confirming payment...');
 
-  // Look for pay/transfer button by text
   for (const keyword of CONFIG.ozonBank.keywords.pay) {
     const pos = findTextPositionOnScreen(keyword, null);
     if (pos.found) {
-      tap(pos.x, pos.y);
+      burstTap(pos.x, pos.y);
       logInfo(`Payment button tapped ("${keyword}")`);
-      usleep(CONFIG.timing.pageTransitionUs);
+      usleep(T().pageTransitionUs);
       break;
     }
   }
 
-  // Wait for secondary confirmation
-  usleep(CONFIG.timing.pageTransitionUs);
+  usleep(T().pageTransitionUs);
   for (const keyword of CONFIG.ozonBank.keywords.confirm) {
     const pos = findTextPositionOnScreen(keyword, null);
     if (pos.found) {
-      tap(pos.x, pos.y);
+      burstTap(pos.x, pos.y);
       logInfo(`Confirmation tapped ("${keyword}")`);
       break;
     }
   }
 
-  // Wait for biometric/PIN if needed
-  usleep(CONFIG.timing.appSwitchDelayUs);
-
-  // Check result
+  usleep(T().appSwitchDelayUs);
   return checkPaymentResult();
 }
 
@@ -246,7 +242,7 @@ function checkPaymentResult() {
   const successResult = waitForText(
     CONFIG.ozonBank.keywords.success,
     null,
-    CONFIG.timing.paymentPageTimeoutUs
+    T().paymentPageTimeoutUs
   );
 
   if (successResult.found) {
@@ -255,7 +251,6 @@ function checkPaymentResult() {
     return { success: true, reason: 'completed' };
   }
 
-  // Check for errors
   const errorResult = findTextOnScreen(CONFIG.ozonBank.keywords.error, null);
   if (errorResult.found) {
     logError(`Payment error: ${errorResult.fullText}`);
@@ -271,7 +266,7 @@ function checkPaymentResult() {
 function returnToTelegram() {
   logInfo('Returning to Telegram...');
   appRun('ph.telegra.Telegraph');
-  usleep(CONFIG.timing.appSwitchDelayUs);
+  usleep(T().appSwitchDelayUs);
 }
 
 // ── Stats ────────────────────────────────────────────────

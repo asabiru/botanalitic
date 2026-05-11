@@ -16,6 +16,12 @@ const {
 
 const CONFIG = require('./config');
 
+// ── Timing Resolution (picks active speed mode) ──────
+
+function T() {
+  return CONFIG.timing[CONFIG.speedMode] || CONFIG.timing.turbo;
+}
+
 // ── Logging ──────────────────────────────────────────────
 
 const LOG_LEVELS = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
@@ -41,20 +47,46 @@ function logError(msg) { log('ERROR', msg); }
 
 function tap(x, y) {
   touchDown(0, x, y);
-  usleep(CONFIG.timing.tapDelayUs);
+  usleep(T().tapDelayUs);
   touchUp(0, x, y);
 }
 
 function tapFast(x, y) {
   touchDown(0, x, y);
-  usleep(15000); // 15ms ultra-fast
+  usleep(8000); // 8ms — absolute minimum for iOS touch registration
   touchUp(0, x, y);
 }
 
+// Burst-tap: hit the same spot multiple times to guarantee registration
+function burstTap(x, y) {
+  const t = T();
+  for (let i = 0; i < t.burstTapCount; i++) {
+    touchDown(0, x, y);
+    usleep(t.tapDelayUs);
+    touchUp(0, x, y);
+    if (i < t.burstTapCount - 1) usleep(t.burstTapIntervalUs);
+  }
+}
+
+// Zero-delay instant tap — fires touchDown+touchUp back to back
+function tapInstant(x, y) {
+  touchDown(0, x, y);
+  touchUp(0, x, y);
+}
+
+// Multi-finger tap (tap two spots simultaneously for speed)
+function tapDual(x1, y1, x2, y2) {
+  touchDown(0, x1, y1);
+  touchDown(1, x2, y2);
+  usleep(8000);
+  touchUp(0, x1, y1);
+  touchUp(1, x2, y2);
+}
+
 function doubleTap(x, y) {
-  tap(x, y);
-  usleep(50000);
-  tap(x, y);
+  tapFast(x, y);
+  usleep(20000);
+  tapFast(x, y);
 }
 
 function longPress(x, y, durationUs) {
@@ -68,10 +100,9 @@ function swipeUp(x, startY, endY, steps) {
   const stepY = (endY - startY) / steps;
   touchDown(0, x, startY);
   for (let i = 1; i <= steps; i++) {
-    usleep(10000);
+    usleep(8000);
     touchMove(0, x, startY + stepY * i);
   }
-  usleep(10000);
   touchUp(0, x, endY);
 }
 
@@ -87,7 +118,7 @@ function scrollDealList(direction) {
   } else {
     swipeUp(centerX, region.y + 50, region.y + region.height - 50, 15);
   }
-  usleep(CONFIG.timing.scrollDelayUs);
+  usleep(T().scrollDelayUs);
 }
 
 // ── Screen Analysis ──────────────────────────────────────
@@ -123,11 +154,16 @@ function findColorInRegion(color, region, count) {
       ? { x: region.x, y: region.y, width: region.width, height: region.height }
       : null,
   });
-  if (err) {
-    logError(`findColor error: ${err}`);
-    return [];
-  }
+  if (err) return [];
   return result || [];
+}
+
+// Ultra-fast: check multiple key pixel positions in one call
+function checkMultipleColors(positions) {
+  const locs = positions.map(p => ({ x: p.x, y: p.y }));
+  const [result, err] = getColors(locs);
+  if (err) return null;
+  return result;
 }
 
 function findColorsPattern(colors, region) {
@@ -255,12 +291,11 @@ function waitForColor(x, y, color, timeoutUs, tolerance) {
   tolerance = tolerance || 30;
   const startTime = Date.now();
   const timeoutMs = timeoutUs / 1000;
+  const pollUs = T().colorScanUs;
 
   while (Date.now() - startTime < timeoutMs) {
-    if (checkColorAt(x, y, color, tolerance)) {
-      return true;
-    }
-    usleep(50000); // check every 50ms
+    if (checkColorAt(x, y, color, tolerance)) return true;
+    usleep(pollUs);
   }
   return false;
 }
@@ -268,13 +303,12 @@ function waitForColor(x, y, color, timeoutUs, tolerance) {
 function waitForText(keywords, region, timeoutUs) {
   const startTime = Date.now();
   const timeoutMs = timeoutUs / 1000;
+  const pollUs = T().ocrWaitUs;
 
   while (Date.now() - startTime < timeoutMs) {
     const result = findTextOnScreen(keywords, region);
-    if (result.found) {
-      return result;
-    }
-    usleep(CONFIG.timing.ocrWaitUs);
+    if (result.found) return result;
+    usleep(pollUs);
   }
   return { found: false, keyword: null, fullText: '' };
 }
@@ -282,15 +316,29 @@ function waitForText(keywords, region, timeoutUs) {
 function waitForTextPosition(keyword, region, timeoutUs) {
   const startTime = Date.now();
   const timeoutMs = timeoutUs / 1000;
+  const pollUs = T().ocrWaitUs;
 
   while (Date.now() - startTime < timeoutMs) {
     const result = findTextPositionOnScreen(keyword, region);
-    if (result.found) {
-      return result;
-    }
-    usleep(CONFIG.timing.ocrWaitUs);
+    if (result.found) return result;
+    usleep(pollUs);
   }
   return { found: false, x: 0, y: 0, text: '' };
+}
+
+// Wait for ANY color change at a position (new content appeared)
+function waitForColorChange(x, y, timeoutUs) {
+  const [origColor] = getColor(x, y);
+  const startTime = Date.now();
+  const timeoutMs = timeoutUs / 1000;
+  const pollUs = T().colorScanUs;
+
+  while (Date.now() - startTime < timeoutMs) {
+    const [current] = getColor(x, y);
+    if (current !== origColor) return true;
+    usleep(pollUs);
+  }
+  return false;
 }
 
 // ── Vibration / Sound ────────────────────────────────────
@@ -304,14 +352,15 @@ function notifyUser(message) {
 }
 
 module.exports = {
+  T,
   setLogLevel,
   logDebug, logInfo, logWarn, logError,
-  tap, tapFast, doubleTap, longPress,
+  tap, tapFast, burstTap, tapInstant, tapDual, doubleTap, longPress,
   swipeUp, swipeDown, scrollDealList,
-  checkColorAt, findColorInRegion, findColorsPattern,
+  checkColorAt, findColorInRegion, findColorsPattern, checkMultipleColors,
   ocrRegion, ocrFullText, findTextOnScreen, findTextPositionOnScreen,
   extractAmount, extractCryptoAmount, extractRate,
   openTelegram, openOzonBank, openURLInApp, isAppForeground,
-  waitForColor, waitForText, waitForTextPosition,
+  waitForColor, waitForText, waitForTextPosition, waitForColorChange,
   notifyUser,
 };

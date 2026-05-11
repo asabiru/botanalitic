@@ -1,19 +1,19 @@
 // ============================================================
-// AutoTouch P2C Sniper — Main Entry Point
+// AutoTouch P2C Sniper — Main Entry Point (TURBO)
 // ============================================================
 // Orchestrates the full P2C deal sniping + payment pipeline.
-// Install: copy entire autotouch-p2c folder to AutoTouch scripts.
-// Run: execute main.js from AutoTouch control panel.
+// Default mode: TURBO — minimum latency, maximum grab speed.
 // ============================================================
 
 const CONFIG = require('./config');
 const {
+  T,
   logInfo, logWarn, logError,
   openTelegram, isAppForeground,
   notifyUser, setLogLevel,
 } = require('./utils');
 const { monitorDeals, refreshDealList } = require('./p2c_monitor');
-const { grabDeal, getStats: getGrabStats } = require('./deal_grabber');
+const { grabDeal, grabDealTurbo, shotgunGrab, getStats: getGrabStats, clearCache } = require('./deal_grabber');
 const { processPayment, returnToTelegram, getPaymentStats } = require('./ozon_pay');
 
 const { usleep } = at;
@@ -27,51 +27,47 @@ let sessionStartTime = 0;
 // ── Deal Handler (called by monitor on each new deal) ────
 
 function handleNewDeal(deal) {
-  logInfo('=== NEW DEAL DETECTED ===');
-  logInfo(`${deal.cryptoAmount} ${deal.cryptoCurrency} = ${deal.rubAmount} RUB`);
-  logInfo(`Payment method accepted: ${deal.hasAcceptedPayment}`);
+  logInfo('=== DEAL DETECTED ===');
 
-  // Check session limits
   if (sessionDeals >= CONFIG.safety.maxDealsPerSession) {
     logWarn('Session deal limit reached');
     return false;
   }
 
-  // Grab the deal
-  const grabResult = grabDeal(deal);
+  let grabResult;
+
+  // In turbo mode with multiple hits, use shotgun approach
+  if (CONFIG.speedMode === 'turbo' && deal.allHits && deal.allHits.length > 1) {
+    grabResult = shotgunGrab(deal.allHits);
+  } else {
+    grabResult = grabDeal(deal);
+  }
+
   if (!grabResult.success) {
     logWarn(`Grab failed: ${grabResult.reason}`);
     return false;
   }
 
   sessionDeals++;
-  logInfo(`Deal grabbed (#${sessionDeals}). Payment info received.`);
+  logInfo(`Deal #${sessionDeals} grabbed in ${grabResult.elapsed}ms`);
 
-  // Process payment if payment info is available
   if (grabResult.paymentInfo) {
     const paymentResult = processPayment(grabResult.paymentInfo);
 
     if (paymentResult.success) {
       sessionPayments++;
-      logInfo(`Payment #${sessionPayments} completed`);
-
-      // Return to Telegram to continue monitoring
-      returnToTelegram();
-      usleep(CONFIG.timing.pageTransitionUs);
-
-      // Navigate back to P2C bot and refresh
-      refreshDealList();
+      logInfo(`Payment #${sessionPayments} done`);
     } else {
       logError(`Payment failed: ${paymentResult.reason}`);
-      notifyUser(`Payment failed: ${paymentResult.reason}. Please complete manually.`);
-
-      // Still return to Telegram
-      returnToTelegram();
-      usleep(CONFIG.timing.pageTransitionUs);
+      notifyUser(`Payment failed: ${paymentResult.reason}. Complete manually.`);
     }
+
+    returnToTelegram();
+    usleep(T().pageTransitionUs);
+    refreshDealList();
   } else {
-    logWarn('No payment info extracted, manual action required');
-    notifyUser('Deal grabbed but no payment info found. Complete payment manually.');
+    logWarn('No payment info — manual action required');
+    notifyUser('Deal grabbed! Complete payment manually.');
   }
 
   return true;
@@ -86,9 +82,9 @@ function printSummary() {
 
   const summary = [
     '═══════════════════════════════════',
-    '     P2C SNIPER SESSION SUMMARY    ',
+    `  P2C SNIPER — ${CONFIG.speedMode.toUpperCase()} MODE`,
     '═══════════════════════════════════',
-    `Duration:       ${elapsed} minutes`,
+    `Duration:       ${elapsed} min`,
     `Deals grabbed:  ${sessionDeals}`,
     `Payments made:  ${sessionPayments}`,
     `Grab success:   ${grabStats.successRate}`,
@@ -101,16 +97,15 @@ function printSummary() {
   alert(summary);
 }
 
-// ── Startup Checks ───────────────────────────────────────
+// ── Startup ──────────────────────────────────────────────
 
 function runStartupChecks() {
   logInfo('Running startup checks...');
 
-  // Check if Telegram is running
   if (!isAppForeground('ph.telegra.Telegraph')) {
-    logInfo('Telegram not in foreground, opening...');
+    logInfo('Opening Telegram...');
     openTelegram();
-    usleep(CONFIG.timing.appSwitchDelayUs);
+    usleep(T().appSwitchDelayUs);
   }
 
   logInfo('Startup checks passed');
@@ -124,22 +119,20 @@ function main() {
   setLogLevel('INFO');
 
   logInfo('╔═══════════════════════════════════╗');
-  logInfo('║     P2C SNIPER by AutoTouch       ║');
-  logInfo('║     v1.0.0                        ║');
+  logInfo(`║  P2C SNIPER v2.0 [${CONFIG.speedMode.toUpperCase()}]        ║`);
   logInfo('╚═══════════════════════════════════╝');
+  logInfo(`Scan interval: ${T().scanIntervalUs / 1000}ms`);
+  logInfo(`Tap delay:     ${T().tapDelayUs / 1000}ms`);
+  logInfo(`Burst taps:    ${T().burstTapCount}x`);
 
-  // Startup
   if (!runStartupChecks()) {
-    logError('Startup checks failed, aborting');
+    logError('Startup failed');
     return;
   }
 
-  notifyUser('P2C Sniper started! Monitoring for deals...');
+  notifyUser(`P2C Sniper started [${CONFIG.speedMode.toUpperCase()}]`);
 
-  // Start monitoring loop (blocking)
   monitorDeals(handleNewDeal);
-
-  // When monitor stops, print summary
   printSummary();
 }
 
@@ -147,21 +140,20 @@ function main() {
 
 function mainMonitorOnly() {
   sessionStartTime = Date.now();
-  setLogLevel('INFO');
-  logInfo('Starting in MONITOR ONLY mode (no auto-grab)');
+  setLogLevel('DEBUG');
+  logInfo('MONITOR ONLY mode');
 
   if (!runStartupChecks()) return;
 
   const { monitorDealsPassive } = require('./p2c_monitor');
   monitorDealsPassive();
-
   printSummary();
 }
 
 function mainGrabOnly() {
   sessionStartTime = Date.now();
   setLogLevel('INFO');
-  logInfo('Starting in GRAB ONLY mode (no auto-pay)');
+  logInfo('GRAB ONLY mode (no auto-pay)');
 
   if (!runStartupChecks()) return;
 
@@ -169,7 +161,7 @@ function mainGrabOnly() {
     const result = grabDeal(deal);
     if (result.success) {
       sessionDeals++;
-      notifyUser(`Deal grabbed! Complete payment manually.\nAmount: ${result.paymentInfo ? result.paymentInfo.amount : 'unknown'} RUB`);
+      notifyUser(`Deal #${sessionDeals} grabbed in ${result.elapsed}ms! Pay manually.`);
     }
     return result.success;
   });

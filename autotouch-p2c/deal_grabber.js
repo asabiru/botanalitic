@@ -1,61 +1,67 @@
 // ============================================================
-// AutoTouch P2C Sniper — Deal Grabber
+// AutoTouch P2C Sniper — Deal Grabber (TURBO)
 // ============================================================
-// Captures deals at maximum speed once detected by the monitor.
-// Handles the full flow: tap deal → confirm → get payment info.
+// Ultra-fast deal capture optimized for minimum latency.
+// Strategy: tap first, verify later.
 // ============================================================
 
 const CONFIG = require('./config');
 const {
+  T,
   logDebug, logInfo, logWarn, logError,
-  tap, tapFast, doubleTap,
+  tap, tapFast, burstTap, tapInstant,
   findTextOnScreen, findTextPositionOnScreen,
-  ocrFullText, checkColorAt,
-  waitForText, waitForTextPosition, waitForColor,
+  ocrFullText, checkColorAt, findColorInRegion,
+  waitForText, waitForTextPosition, waitForColor, waitForColorChange,
+  checkMultipleColors,
   notifyUser,
 } = require('./utils');
 
-const { usleep } = at;
+const { usleep, touchDown, touchUp, getColor } = at;
 
 // ── State ────────────────────────────────────────────────
 
 let grabbedCount = 0;
 let failedCount = 0;
+let cachedAcceptPos = null;
+let cachedConfirmPos = null;
 
-// ── Grab Deal ────────────────────────────────────────────
+// ── TURBO Grab: tap-first strategy ───────────────────────
+// Instead of scanning -> analyzing -> tapping, we:
+// 1. Instantly burst-tap the deal position
+// 2. Instantly burst-tap the known accept button position
+// 3. Instantly burst-tap the known confirm position
+// 4. THEN verify the result
 
-function grabDeal(deal) {
-  logInfo(`Attempting to grab deal at Y=${deal.yPosition}`);
-  logInfo(`Deal: ${deal.cryptoAmount} ${deal.cryptoCurrency} = ${deal.rubAmount} RUB`);
-
+function grabDealTurbo(deal) {
   const startTime = Date.now();
 
-  // Step 1: Tap on the deal row (fastest possible)
-  tapFast(CONFIG.device.screenWidth / 2, deal.yPosition);
-  usleep(CONFIG.timing.betweenTapsUs);
+  // Phase 1: Instant tap on deal (no delay)
+  burstTap(CONFIG.device.screenWidth / 2, deal.yPosition);
 
-  // Step 2: Look for and tap "Accept" / "Принять" button
-  const accepted = tapAcceptButton();
-  if (!accepted) {
-    logWarn('Could not find accept button, deal may have been taken');
-    failedCount++;
-    return { success: false, reason: 'accept_not_found' };
-  }
+  // Phase 2: Immediately hit accept button (cached or default position)
+  const acceptX = cachedAcceptPos ? cachedAcceptPos.x : CONFIG.p2c.buttons.acceptDeal.x;
+  const acceptY = cachedAcceptPos ? cachedAcceptPos.y : CONFIG.p2c.buttons.acceptDeal.y;
 
-  usleep(CONFIG.timing.betweenTapsUs);
+  usleep(T().betweenTapsUs);
+  burstTap(acceptX, acceptY);
 
-  // Step 3: Confirm the deal if confirmation dialog appears
-  const confirmed = tapConfirmButton();
+  // Phase 3: Hit confirm (pre-emptive, may not appear yet)
+  const confirmX = cachedConfirmPos ? cachedConfirmPos.x : CONFIG.p2c.buttons.confirmDeal.x;
+  const confirmY = cachedConfirmPos ? cachedConfirmPos.y : CONFIG.p2c.buttons.confirmDeal.y;
 
-  // Step 4: Wait for success or payment info
-  const result = waitForDealResult();
+  usleep(T().betweenTapsUs);
+  burstTap(confirmX, confirmY);
+
+  // Phase 4: Quick color-based result check
+  usleep(T().pageTransitionUs);
+  const result = checkGrabResult();
 
   const elapsed = Date.now() - startTime;
-  logInfo(`Grab attempt took ${elapsed}ms — result: ${result.status}`);
+  logInfo(`TURBO grab: ${elapsed}ms — ${result.status}`);
 
   if (result.status === 'success') {
     grabbedCount++;
-    notifyUser(`Deal grabbed! ${deal.cryptoAmount} ${deal.cryptoCurrency}`);
     return {
       success: true,
       deal: deal,
@@ -68,93 +74,173 @@ function grabDeal(deal) {
   return { success: false, reason: result.status, elapsed: elapsed };
 }
 
-// ── Accept Button ────────────────────────────────────────
+// ── Standard Grab (with OCR verification) ────────────────
+
+function grabDeal(deal) {
+  if (CONFIG.speedMode === 'turbo') {
+    return grabDealTurbo(deal);
+  }
+
+  const startTime = Date.now();
+
+  // Step 1: Burst-tap on the deal row
+  burstTap(CONFIG.device.screenWidth / 2, deal.yPosition);
+  usleep(T().betweenTapsUs);
+
+  // Step 2: Find and tap accept button
+  const accepted = tapAcceptButton();
+  if (!accepted) {
+    failedCount++;
+    return { success: false, reason: 'accept_not_found' };
+  }
+
+  usleep(T().betweenTapsUs);
+
+  // Step 3: Confirm
+  tapConfirmButton();
+
+  // Step 4: Verify result
+  const result = waitForDealResult();
+
+  const elapsed = Date.now() - startTime;
+  logInfo(`Grab: ${elapsed}ms — ${result.status}`);
+
+  if (result.status === 'success') {
+    grabbedCount++;
+    return {
+      success: true,
+      deal: deal,
+      paymentInfo: result.paymentInfo,
+      elapsed: elapsed,
+    };
+  }
+
+  failedCount++;
+  return { success: false, reason: result.status, elapsed: elapsed };
+}
+
+// ── Accept Button (multi-strategy) ───────────────────────
 
 function tapAcceptButton() {
-  // Strategy 1: Look for accept button by color
-  const acceptColor = CONFIG.p2c.colors.acceptButton;
-  const acceptRegion = {
-    x: 50,
-    y: CONFIG.p2c.buttons.acceptDeal.y - 50,
-    width: CONFIG.device.screenWidth - 100,
-    height: 100,
-  };
-
-  const colorFound = checkColorAt(
-    CONFIG.p2c.buttons.acceptDeal.x,
-    CONFIG.p2c.buttons.acceptDeal.y,
-    acceptColor, 40
-  );
-
-  if (colorFound) {
-    tapFast(CONFIG.p2c.buttons.acceptDeal.x, CONFIG.p2c.buttons.acceptDeal.y);
-    logInfo('Accept button tapped (color match)');
+  // Strategy 1: Use cached position (fastest)
+  if (cachedAcceptPos) {
+    burstTap(cachedAcceptPos.x, cachedAcceptPos.y);
+    logDebug('Accept tapped (cached position)');
     return true;
   }
 
-  // Strategy 2: Look for accept button by OCR text
+  // Strategy 2: Color match at default position (fast)
+  const acceptColor = CONFIG.p2c.colors.acceptButton;
+  if (checkColorAt(CONFIG.p2c.buttons.acceptDeal.x, CONFIG.p2c.buttons.acceptDeal.y, acceptColor, 40)) {
+    burstTap(CONFIG.p2c.buttons.acceptDeal.x, CONFIG.p2c.buttons.acceptDeal.y);
+    cachedAcceptPos = { x: CONFIG.p2c.buttons.acceptDeal.x, y: CONFIG.p2c.buttons.acceptDeal.y };
+    logDebug('Accept tapped (color match) — position cached');
+    return true;
+  }
+
+  // Strategy 3: Find green button anywhere in deal region (medium)
+  const dealRegion = CONFIG.p2c.buttons.dealList;
+  const greenButtons = findColorInRegion(acceptColor, dealRegion, 3);
+  if (greenButtons.length > 0) {
+    const btn = greenButtons[0];
+    burstTap(btn.x, btn.y);
+    cachedAcceptPos = { x: btn.x, y: btn.y };
+    logDebug(`Accept tapped (color scan at ${btn.x},${btn.y}) — position cached`);
+    return true;
+  }
+
+  // Strategy 4: OCR (slowest, last resort)
   for (const keyword of CONFIG.p2c.keywords.accept) {
     const pos = findTextPositionOnScreen(keyword, null);
     if (pos.found) {
-      tapFast(pos.x, pos.y);
-      logInfo(`Accept button tapped (OCR: "${keyword}")`);
+      burstTap(pos.x, pos.y);
+      cachedAcceptPos = { x: pos.x, y: pos.y };
+      logDebug(`Accept tapped (OCR: "${keyword}") — position cached`);
       return true;
     }
   }
 
-  // Strategy 3: Tap the default accept position
-  logWarn('Fallback: tapping default accept position');
-  tapFast(CONFIG.p2c.buttons.acceptDeal.x, CONFIG.p2c.buttons.acceptDeal.y);
+  // Strategy 5: Blind tap at default position
+  burstTap(CONFIG.p2c.buttons.acceptDeal.x, CONFIG.p2c.buttons.acceptDeal.y);
   return true;
 }
 
 // ── Confirm Button ───────────────────────────────────────
 
 function tapConfirmButton() {
-  usleep(CONFIG.timing.pageTransitionUs);
+  usleep(T().pageTransitionUs);
 
-  // Look for confirm keywords
+  // Use cached position if available
+  if (cachedConfirmPos) {
+    burstTap(cachedConfirmPos.x, cachedConfirmPos.y);
+    return true;
+  }
+
+  // Quick OCR scan for confirm keywords
   for (const keyword of ['Подтвердить', 'Confirm', 'Да', 'Yes', 'OK']) {
     const pos = findTextPositionOnScreen(keyword, null);
     if (pos.found) {
-      tapFast(pos.x, pos.y);
-      logInfo(`Confirm button tapped ("${keyword}")`);
+      burstTap(pos.x, pos.y);
+      cachedConfirmPos = { x: pos.x, y: pos.y };
       return true;
     }
   }
 
-  // Try default confirm position
-  const confirmPos = CONFIG.p2c.buttons.confirmDeal;
-  tapFast(confirmPos.x, confirmPos.y);
+  // Default position
+  burstTap(CONFIG.p2c.buttons.confirmDeal.x, CONFIG.p2c.buttons.confirmDeal.y);
   return true;
+}
+
+// ── Quick Result Check (color-based, no OCR) ─────────────
+
+function checkGrabResult() {
+  // Check for green (success) vs red (error) at key screen positions
+  const midX = CONFIG.device.screenWidth / 2;
+  const positions = [
+    { x: midX, y: 400 },
+    { x: midX, y: 500 },
+    { x: midX, y: 600 },
+  ];
+
+  const colors = checkMultipleColors(positions);
+  if (colors) {
+    for (const c of colors) {
+      // Check if any position shows error red
+      const r = (c >> 16) & 0xFF;
+      const g = (c >> 8) & 0xFF;
+      if (r > 200 && g < 80) {
+        return { status: 'taken', paymentInfo: null };
+      }
+    }
+  }
+
+  // Fall back to OCR for detailed result
+  return waitForDealResult();
 }
 
 // ── Wait for Result ──────────────────────────────────────
 
 function waitForDealResult() {
-  const timeoutUs = CONFIG.timing.acceptTimeoutUs;
+  const timeoutUs = T().acceptTimeoutUs;
   const startTime = Date.now();
   const timeoutMs = timeoutUs / 1000;
+  const pollUs = T().ocrWaitUs;
 
   while (Date.now() - startTime < timeoutMs) {
-    // Check for success
     const success = findTextOnScreen(CONFIG.p2c.keywords.success, null);
     if (success.found) {
       const paymentInfo = extractPaymentInfo(success.fullText);
       return { status: 'success', paymentInfo: paymentInfo };
     }
 
-    // Check if deal was already taken
     const taken = findTextOnScreen(CONFIG.p2c.keywords.taken, null);
     if (taken.found) {
-      logWarn('Deal was already taken');
       return { status: 'taken', paymentInfo: null };
     }
 
-    usleep(CONFIG.timing.ocrWaitUs);
+    usleep(pollUs);
   }
 
-  logWarn('Deal grab timed out');
   return { status: 'timeout', paymentInfo: null };
 }
 
@@ -172,36 +258,30 @@ function extractPaymentInfo(screenText) {
     timeLimit: null,
   };
 
-  // Extract RUB amount
   const rubMatch = screenText.match(/([\d\s,.]+)\s*(RUB|₽|руб)/i);
   if (rubMatch) {
     info.amount = parseFloat(rubMatch[1].replace(/\s/g, '').replace(',', '.'));
   }
 
-  // Extract payment URL
   const urlMatch = screenText.match(/(https?:\/\/[^\s]+)/i);
   if (urlMatch) {
     info.paymentUrl = urlMatch[1];
   }
 
-  // Extract card number
   const cardMatch = screenText.match(/(\d{4}\s?\d{4}\s?\d{4}\s?\d{4})/);
   if (cardMatch) {
     info.cardNumber = cardMatch[1].replace(/\s/g, '');
   }
 
-  // Extract bank name
   if (screenText.toLowerCase().includes('ozon') || screenText.toLowerCase().includes('озон')) {
     info.bankName = 'Ozon Bank';
   }
 
-  // Extract time limit
   const timeMatch = screenText.match(/(\d+)\s*(мин|min|минут)/i);
   if (timeMatch) {
     info.timeLimit = parseInt(timeMatch[1]);
   }
 
-  // Extract comment/memo
   const commentMatch = screenText.match(/(?:комментарий|comment|memo)[:\s]*([^\n]+)/i);
   if (commentMatch) {
     info.comment = commentMatch[1].trim();
@@ -210,17 +290,44 @@ function extractPaymentInfo(screenText) {
   return info;
 }
 
-// ── Batch Grab (try multiple deals fast) ─────────────────
+// ── Batch Grab (shotgun approach) ────────────────────────
+// Tap ALL deal positions simultaneously, then verify
 
-function tryGrabFirstAvailable(deals) {
-  for (const deal of deals) {
-    const result = grabDeal(deal);
-    if (result.success) {
-      return result;
-    }
-    usleep(CONFIG.timing.betweenTapsUs);
+function shotgunGrab(dealPositions) {
+  logInfo(`Shotgun grab: ${dealPositions.length} positions`);
+  const startTime = Date.now();
+
+  // Tap all positions with minimal delay
+  for (const pos of dealPositions) {
+    tapInstant(pos.x, pos.y);
+    usleep(T().burstTapIntervalUs);
   }
-  return { success: false, reason: 'all_deals_failed' };
+
+  // Wait a moment then tap accept
+  usleep(T().betweenTapsUs);
+  burstTap(CONFIG.p2c.buttons.acceptDeal.x, CONFIG.p2c.buttons.acceptDeal.y);
+
+  usleep(T().betweenTapsUs);
+  burstTap(CONFIG.p2c.buttons.confirmDeal.x, CONFIG.p2c.buttons.confirmDeal.y);
+
+  usleep(T().pageTransitionUs);
+  const result = checkGrabResult();
+
+  const elapsed = Date.now() - startTime;
+  if (result.status === 'success') {
+    grabbedCount++;
+    return { success: true, paymentInfo: result.paymentInfo, elapsed: elapsed };
+  }
+
+  failedCount++;
+  return { success: false, reason: result.status, elapsed: elapsed };
+}
+
+// ── Clear Cached Positions ───────────────────────────────
+
+function clearCache() {
+  cachedAcceptPos = null;
+  cachedConfirmPos = null;
 }
 
 // ── Stats ────────────────────────────────────────────────
@@ -237,10 +344,12 @@ function getStats() {
 
 module.exports = {
   grabDeal,
+  grabDealTurbo,
+  shotgunGrab,
   tapAcceptButton,
   tapConfirmButton,
   waitForDealResult,
   extractPaymentInfo,
-  tryGrabFirstAvailable,
+  clearCache,
   getStats,
 };

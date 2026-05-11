@@ -101,26 +101,59 @@ const CONFIG = {
     minSellerTrades: 0,
   },
 
+  // ── Speed Mode ─────────────────────────────────────────
+  // 'turbo' = absolute minimum delays (risk of missed taps)
+  // 'fast'  = balanced speed + reliability (recommended)
+  // 'safe'  = conservative delays for older devices
+  speedMode: 'turbo',
+
   // ── Timing (microseconds) ──────────────────────────────
   timing: {
-    // Scan interval between checking for new deals
-    scanIntervalUs: 300000,       // 300ms — aggressive scanning
-    // Delay after tapping a button before next action
-    tapDelayUs: 50000,            // 50ms — minimal delay for speed
-    // Delay between sequential taps
-    betweenTapsUs: 100000,        // 100ms
-    // Delay after page transition
-    pageTransitionUs: 500000,     // 500ms — wait for content load
-    // OCR processing wait
-    ocrWaitUs: 200000,            // 200ms
-    // Timeout for deal acceptance (before giving up)
-    acceptTimeoutUs: 5000000,     // 5s
-    // Delay before scrolling deal list
-    scrollDelayUs: 150000,        // 150ms
-    // Max time to wait for payment page to load
-    paymentPageTimeoutUs: 10000000, // 10s
-    // App switch delay
-    appSwitchDelayUs: 1000000,    // 1s
+    turbo: {
+      scanIntervalUs: 80000,        // 80ms — ultra-aggressive polling
+      tapDelayUs: 8000,             // 8ms — near-instant tap
+      betweenTapsUs: 20000,         // 20ms — rapid-fire taps
+      pageTransitionUs: 150000,     // 150ms — minimal page wait
+      ocrWaitUs: 60000,             // 60ms — fast OCR poll
+      acceptTimeoutUs: 3000000,     // 3s — quick fail
+      scrollDelayUs: 50000,         // 50ms
+      paymentPageTimeoutUs: 8000000, // 8s
+      appSwitchDelayUs: 600000,     // 600ms
+      colorScanUs: 15000,           // 15ms — pixel check interval
+      burstTapCount: 3,             // multi-tap same spot for reliability
+      burstTapIntervalUs: 10000,    // 10ms between burst taps
+      preloadOcrUs: 0,              // skip OCR on fast path
+    },
+    fast: {
+      scanIntervalUs: 200000,       // 200ms
+      tapDelayUs: 25000,            // 25ms
+      betweenTapsUs: 60000,         // 60ms
+      pageTransitionUs: 300000,     // 300ms
+      ocrWaitUs: 120000,            // 120ms
+      acceptTimeoutUs: 5000000,     // 5s
+      scrollDelayUs: 100000,        // 100ms
+      paymentPageTimeoutUs: 10000000,// 10s
+      appSwitchDelayUs: 800000,     // 800ms
+      colorScanUs: 30000,           // 30ms
+      burstTapCount: 2,
+      burstTapIntervalUs: 15000,
+      preloadOcrUs: 0,
+    },
+    safe: {
+      scanIntervalUs: 500000,       // 500ms
+      tapDelayUs: 50000,            // 50ms
+      betweenTapsUs: 120000,        // 120ms
+      pageTransitionUs: 600000,     // 600ms
+      ocrWaitUs: 250000,            // 250ms
+      acceptTimeoutUs: 8000000,     // 8s
+      scrollDelayUs: 200000,        // 200ms
+      paymentPageTimeoutUs: 15000000,// 15s
+      appSwitchDelayUs: 1200000,    // 1.2s
+      colorScanUs: 50000,           // 50ms
+      burstTapCount: 1,
+      burstTapIntervalUs: 0,
+      preloadOcrUs: 100000,
+    },
   },
 
   // ── Ozon Bank Payment ──────────────────────────────────
